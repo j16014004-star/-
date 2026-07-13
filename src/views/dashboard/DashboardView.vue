@@ -296,6 +296,7 @@ onMounted(() => {
   // 加载仪表盘数据
   loadDashboardData()
 })
+</script>
 
 <style scoped>
 .dashboard-view :deep(.el-card) {
