@@ -140,6 +140,7 @@ import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import type { UploadInstance, UploadFile, UploadFiles } from 'element-plus'
 import { ElMessage } from 'element-plus'
+import { resumeApi } from '@/api/resume'
 
 const router = useRouter()
 const uploadRef = ref<UploadInstance>()
@@ -169,7 +170,7 @@ const resetUpload = () => {
   }
 }
 
-const handleUpload = () => {
+const handleUpload = async () => {
   if (!selectedFile.value) {
     ElMessage.warning('请先选择文件')
     return
@@ -181,30 +182,39 @@ const handleUpload = () => {
   }
 
   uploading.value = true
-  uploadProgress.value = 0
+  uploadProgress.value = 10
 
-  // Simulate upload progress
-  const interval = setInterval(() => {
-    uploadProgress.value += Math.floor(Math.random() * 15) + 5
-    if (uploadProgress.value >= 100) {
-      uploadProgress.value = 100
-      clearInterval(interval)
+  try {
+    // 模拟进度更新
+    const progressInterval = setInterval(() => {
+      if (uploadProgress.value < 90) {
+        uploadProgress.value += Math.floor(Math.random() * 15) + 5
+      }
+    }, 300)
 
+    // 调用后端 API 上传简历
+    const response = await resumeApi.upload(selectedFile.value, title.value)
+
+    clearInterval(progressInterval)
+    uploadProgress.value = 100
+
+    setTimeout(() => {
+      uploading.value = false
+      ElMessage.success({
+        message: '简历上传成功！正在跳转到详情页...',
+        duration: 2000
+      })
+
+      const newId = response.data?.id || Date.now()
       setTimeout(() => {
-        uploading.value = false
-        ElMessage.success({
-          message: '简历上传成功！正在跳转到详情页...',
-          duration: 2000
-        })
-
-        // Simulate new resume ID
-        const newId = Date.now()
-        setTimeout(() => {
-          router.push(`/resume/detail/${newId}`)
-        }, 500)
+        router.push(`/resume/detail/${newId}`)
       }, 500)
-    }
-  }, 300)
+    }, 500)
+  } catch (error: any) {
+    uploading.value = false
+    uploadProgress.value = 0
+    ElMessage.error(error.response?.data?.message || '上传失败，请稍后重试')
+  }
 }
 </script>
 

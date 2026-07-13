@@ -247,6 +247,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Camera, Sunny, Moon, Monitor } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
+import { authApi } from '@/api/auth'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -379,33 +380,50 @@ function handleSidebarChange(val: string | number | boolean) {
   appStore.setSidebarCollapsed(!val)
 }
 
-onMounted(() => {
-  // 从 localStorage 加载用户信息
-  const storedUser = localStorage.getItem('user')
-  if (storedUser) {
-    try {
-      const user = JSON.parse(storedUser)
-      userInfo.username = user.username || '用户'
-      userInfo.email = user.email || ''
-      userInfo.phone = user.phone || ''
-      userInfo.avatar = user.avatar || ''
-    } catch { /* ignore */ }
+onMounted(async () => {
+  // 从后端 API 获取用户信息
+  try {
+    const response = await authApi.getUserInfo()
+    const user = response.data
+    userInfo.id = user.id
+    userInfo.username = user.username || '用户'
+    userInfo.email = user.email || ''
+    userInfo.phone = user.phone || ''
+    userInfo.avatar = user.avatar || ''
+    userInfo.created_at = user.created_at || ''
+    // 同步到 store
+    appStore.user.name = userInfo.username
+    appStore.user.avatar = userInfo.avatar
+  } catch (error) {
+    // 如果 API 失败，从 localStorage 加载
+    const storedUser = localStorage.getItem('user')
+    if (storedUser) {
+      try {
+        const user = JSON.parse(storedUser)
+        userInfo.username = user.username || '用户'
+        userInfo.email = user.email || ''
+        userInfo.phone = user.phone || ''
+        userInfo.avatar = user.avatar || ''
+      } catch { /* ignore */ }
+    }
   }
-  // 确保 store 中的用户信息同步
-  if (userInfo.username) appStore.user.name = userInfo.username
-  if (userInfo.avatar) appStore.user.avatar = userInfo.avatar
 })
 
-function saveProfile() {
-  const storedUser = localStorage.getItem('user')
-  const user = storedUser ? JSON.parse(storedUser) : {}
-  user.username = userInfo.username
-  user.email = userInfo.email
-  user.phone = userInfo.phone
-  localStorage.setItem('user', JSON.stringify(user))
-  // 同步到 store
-  appStore.user.name = userInfo.username
-  ElMessage.success('个人信息保存成功')
+async function saveProfile() {
+  try {
+    // 调用后端 API 更新用户资料
+    await authApi.updateProfile({
+      username: userInfo.username,
+      email: userInfo.email,
+      phone: userInfo.phone,
+      avatar: userInfo.avatar
+    })
+    // 同步到 store
+    appStore.user.name = userInfo.username
+    ElMessage.success('个人信息保存成功')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '保存失败，请稍后重试')
+  }
 }
 
 function resetProfile() {
@@ -441,19 +459,31 @@ function handleChangePassword() {
   passwordForm.confirmPassword = ''
 }
 
-function handleLogout() {
-  ElMessageBox.confirm('确定要退出登录吗？', '确认退出', {
-    type: 'warning',
-    confirmButtonText: '退出',
-    cancelButtonText: '取消',
-  }).then(() => {
+async function handleLogout() {
+  try {
+    await ElMessageBox.confirm('确定要退出登录吗？', '确认退出', {
+      type: 'warning',
+      confirmButtonText: '退出',
+      cancelButtonText: '取消',
+    })
+
+    // 调用后端登出 API
+    await authApi.logout()
+
+    // 清除本地存储
     localStorage.removeItem('token')
+    localStorage.removeItem('refresh_token')
     localStorage.removeItem('user')
     localStorage.removeItem('userAvatar')
     appStore.logout()
     ElMessage.success('已退出登录')
     router.push('/login')
-  }).catch(() => {})
+  } catch (error) {
+    // 用户取消或 API 错误
+    if (error !== 'cancel') {
+      ElMessage.error('退出失败，请稍后重试')
+    }
+  }
 }
 
 function handleDeleteAccount() {

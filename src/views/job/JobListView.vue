@@ -139,9 +139,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Search, Star } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { jobApi } from '@/api/job'
 
 const filters = reactive({
   keyword: '',
@@ -152,87 +153,44 @@ const filters = reactive({
 const aiMatch = ref(true)
 const sortBy = ref('match')
 const currentPage = ref(1)
+const isLoading = ref(false)
 
-const jobs = ref([
-  {
-    id: 1,
-    title: '高级前端工程师',
-    company: '阿里巴巴',
-    city: '杭州',
-    salaryMin: 25,
-    salaryMax: 45,
-    experience: '3-5年',
-    education: '本科及以上',
-    skills: ['Vue3', 'TypeScript', 'Node.js', '微前端'],
-    matchScore: 92,
-    matchReasons: ['技能匹配度高达92%', '项目经验与岗位要求高度契合', '薪资期望符合'],
-  },
-  {
-    id: 2,
-    title: '前端技术专家',
-    company: '字节跳动',
-    city: '北京',
-    salaryMin: 35,
-    salaryMax: 60,
-    experience: '5-10年',
-    education: '本科及以上',
-    skills: ['React', 'TypeScript', '性能优化', '架构设计'],
-    matchScore: 87,
-    matchReasons: ['技术栈高度匹配', '具备架构设计经验', '符合职级要求'],
-  },
-  {
-    id: 3,
-    title: '全栈开发工程师',
-    company: '腾讯',
-    city: '深圳',
-    salaryMin: 30,
-    salaryMax: 50,
-    experience: '3-5年',
-    education: '本科及以上',
-    skills: ['Vue3', 'Node.js', 'MySQL', 'Docker'],
-    matchScore: 85,
-    matchReasons: ['前后端技能均衡', '项目经验丰富', '技术栈匹配'],
-  },
-  {
-    id: 4,
-    title: '前端开发工程师',
-    company: '美团',
-    city: '北京',
-    salaryMin: 20,
-    salaryMax: 35,
-    experience: '1-3年',
-    education: '本科及以上',
-    skills: ['Vue.js', 'JavaScript', 'Webpack', 'Git'],
-    matchScore: 78,
-    matchReasons: ['基础技能扎实', '有相关项目经验', '学习能力强'],
-  },
-  {
-    id: 5,
-    title: '资深前端工程师',
-    company: '蚂蚁集团',
-    city: '杭州',
-    salaryMin: 40,
-    salaryMax: 70,
-    experience: '5年以上',
-    education: '本科及以上',
-    skills: ['React', 'TypeScript', '微服务', 'CI/CD'],
-    matchScore: 82,
-    matchReasons: ['技术深度符合要求', '具备团队管理经验', '薪资范围匹配'],
-  },
-  {
-    id: 6,
-    title: '前端架构师',
-    company: '京东',
-    city: '北京',
-    salaryMin: 45,
-    salaryMax: 80,
-    experience: '7年以上',
-    education: '本科及以上',
-    skills: ['微前端', '性能优化', '技术选型', '团队管理'],
-    matchScore: 75,
-    matchReasons: ['架构设计经验丰富', '技术视野开阔', '具备领导力'],
-  },
-])
+const jobs = ref<any[]>([])
+
+// 从后端 API 加载推荐岗位
+async function loadJobs() {
+  isLoading.value = true
+  try {
+    const response = await jobApi.getRecommendations({
+      keyword: filters.keyword,
+      city: filters.city,
+      salary_min: filters.salary ? parseInt(filters.salary) : undefined,
+      page: currentPage.value,
+      page_size: pageSize
+    })
+    jobs.value = (response.data?.items || []).map((job: any) => ({
+      id: job.id,
+      title: job.title,
+      company: job.company_name || job.company,
+      city: job.city,
+      salaryMin: job.salary_min,
+      salaryMax: job.salary_max,
+      experience: job.experience,
+      education: job.education,
+      skills: job.skills || [],
+      matchScore: job.match_score || 0,
+      matchReasons: job.match_reasons || []
+    }))
+  } catch (error) {
+    ElMessage.error('加载岗位推荐失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadJobs()
+})
 
 const pageSize = 9
 const pagedJobs = computed(() => {
@@ -247,7 +205,8 @@ function getMatchColor(score: number): string {
 }
 
 function handleSearch() {
-  ElMessage.info('搜索功能开发中...')
+  currentPage.value = 1
+  loadJobs()
 }
 
 function handlePageChange(page: number) {

@@ -141,22 +141,15 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { resumeApi } from '@/api/resume'
+import { interviewApi } from '@/api/interview'
+import { chatApi } from '@/api/chat'
+import { jobApi } from '@/api/job'
 
 const router = useRouter()
 
 const username = ref('用户')
-
-onMounted(() => {
-  const stored = localStorage.getItem('user')
-  if (stored) {
-    try {
-      const user = JSON.parse(stored)
-      username.value = user.username || '用户'
-    } catch {
-      // ignore
-    }
-  }
-})
+const isLoading = ref(false)
 
 const todayDate = new Date().toLocaleDateString('zh-CN', {
   year: 'numeric',
@@ -166,12 +159,15 @@ const todayDate = new Date().toLocaleDateString('zh-CN', {
 
 const todayWeekday = new Date().toLocaleDateString('zh-CN', { weekday: 'long' })
 
-const stats = [
-  { label: '简历数', value: '3', icon: '📄', trend: 12, bgColor: 'linear-gradient(135deg, #dbeafe, #bfdbfe)' },
-  { label: '面试次数', value: '5', icon: '💬', trend: 8, bgColor: 'linear-gradient(135deg, #d1fae5, #a7f3d0)' },
-  { label: '匹配岗位', value: '12', icon: '🎯', trend: -3, bgColor: 'linear-gradient(135deg, #fef3c7, #fde68a)' },
-  { label: 'AI对话', value: '28', icon: '🤖', trend: 25, bgColor: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)' }
-]
+const stats = ref([
+  { label: '简历数', value: '0', icon: '📄', trend: 0, bgColor: 'linear-gradient(135deg, #dbeafe, #bfdbfe)' },
+  { label: '面试次数', value: '0', icon: '💬', trend: 0, bgColor: 'linear-gradient(135deg, #d1fae5, #a7f3d0)' },
+  { label: '匹配岗位', value: '0', icon: '🎯', trend: 0, bgColor: 'linear-gradient(135deg, #fef3c7, #fde68a)' },
+  { label: 'AI对话', value: '0', icon: '🤖', trend: 0, bgColor: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)' }
+])
+
+const activities = ref<any[]>([])
+const upcomingInterviews = ref<any[]>([])
 
 const quickActions = [
   {
@@ -200,61 +196,106 @@ const quickActions = [
   }
 ]
 
-const activities = [
-  {
-    title: '简历"前端工程师_v3" 分析完成',
-    desc: 'AI评分 85分，已为你生成优化建议',
-    time: '10 分钟前',
-    icon: '✅',
-    color: '#d1fae5'
-  },
-  {
-    title: '新增 3 个匹配岗位',
-    desc: '阿里巴巴、字节跳动、腾讯等公司',
-    time: '1 小时前',
-    icon: '🎯',
-    color: '#dbeafe'
-  },
-  {
-    title: 'AI面试模拟完成',
-    desc: '技术岗位面试，得分 78分',
-    time: '3 小时前',
-    icon: '💬',
-    color: '#fef3c7'
-  },
-  {
-    title: '职业规划报告已更新',
-    desc: '基于你的技能和经历生成新的建议',
-    time: '昨天',
-    icon: '👨‍💻',
-    color: '#e0e7ff'
-  },
-  {
-    title: 'HR消息回复提醒',
-    desc: '阿里巴巴HR已查看你的简历',
-    time: '昨天',
-    icon: '📨',
-    color: '#fce7f3'
-  }
-]
+// 从后端 API 加载仪表盘数据
+async function loadDashboardData() {
+  isLoading.value = true
+  try {
+    // 并行加载所有数据
+    const [resumeRes, interviewRes, chatRes, jobRes] = await Promise.all([
+      resumeApi.getList({ page: 1, page_size: 10 }).catch(() => null),
+      interviewApi.getList().catch(() => null),
+      chatApi.getSessions().catch(() => null),
+      jobApi.getRecommendations({ page: 1, page_size: 10 }).catch(() => null)
+    ])
 
-const upcomingInterviews = [
-  {
-    id: 1,
-    company: '阿里巴巴',
-    position: '前端开发工程师',
-    date: '2026-07-15',
-    time: '14:00'
-  },
-  {
-    id: 2,
-    company: '字节跳动',
-    position: '高级前端工程师',
-    date: '2026-07-18',
-    time: '10:30'
+    // 更新统计数据
+    const resumeCount = resumeRes?.data?.total || 0
+    const interviewCount = interviewRes?.data?.length || 0
+    const jobCount = jobRes?.data?.total || 0
+    const chatCount = chatRes?.data?.length || 0
+
+    stats.value[0].value = resumeCount.toString()
+    stats.value[1].value = interviewCount.toString()
+    stats.value[2].value = jobCount.toString()
+    stats.value[3].value = chatCount.toString()
+
+    // 构建最近动态
+    activities.value = []
+    if (resumeRes?.data?.items?.length > 0) {
+      const latestResume = resumeRes.data.items[0]
+      activities.value.push({
+        title: `简历"${latestResume.title}" 分析完成`,
+        desc: latestResume.score ? `AI评分 ${latestResume.score}分` : '已为你生成分析结果',
+        time: formatTimeAgo(latestResume.created_at),
+        icon: '✅',
+        color: '#d1fae5'
+      })
+    }
+    if (interviewRes?.data?.length > 0) {
+      const latestInterview = interviewRes.data[0]
+      activities.value.push({
+        title: `AI面试模拟完成`,
+        desc: `${latestInterview.position}面试，得分 ${latestInterview.score || '待评分'}分`,
+        time: formatTimeAgo(latestInterview.created_at),
+        icon: '💬',
+        color: '#fef3c7'
+      })
+    }
+    if (jobRes?.data?.items?.length > 0) {
+      activities.value.push({
+        title: `新增 ${jobCount} 个匹配岗位`,
+        desc: '基于你的技能和经历推荐',
+        time: '今天',
+        icon: '🎯',
+        color: '#dbeafe'
+      })
+    }
+
+    // 加载即将到来的面试
+    const pendingInterviews = interviewRes?.data?.filter((i: any) => i.status === 'pending' || i.status === 'in_progress') || []
+    upcomingInterviews.value = pendingInterviews.slice(0, 2).map((i: any) => ({
+      id: i.id,
+      company: i.company || '未指定',
+      position: i.position,
+      date: i.scheduled_date || i.created_at?.split('T')[0] || '',
+      time: i.scheduled_time || '10:00'
+    }))
+  } catch (error) {
+    ElMessage.error('加载仪表盘数据失败')
+  } finally {
+    isLoading.value = false
   }
-]
-</script>
+}
+
+function formatTimeAgo(dateStr: string): string {
+  if (!dateStr) return '未知'
+  const date = new Date(dateStr)
+  const now = new Date()
+  const diffMs = now.getTime() - date.getTime()
+  const diffMins = Math.floor(diffMs / 60000)
+  const diffHours = Math.floor(diffMs / 3600000)
+  const diffDays = Math.floor(diffMs / 86400000)
+
+  if (diffMins < 60) return `${diffMins} 分钟前`
+  if (diffHours < 24) return `${diffHours} 小时前`
+  if (diffDays < 7) return `${diffDays} 天前`
+  return date.toLocaleDateString('zh-CN')
+}
+
+onMounted(() => {
+  // 加载用户名
+  const stored = localStorage.getItem('user')
+  if (stored) {
+    try {
+      const user = JSON.parse(stored)
+      username.value = user.username || '用户'
+    } catch {
+      // ignore
+    }
+  }
+  // 加载仪表盘数据
+  loadDashboardData()
+})
 
 <style scoped>
 .dashboard-view :deep(.el-card) {

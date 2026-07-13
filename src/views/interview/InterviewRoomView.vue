@@ -120,14 +120,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { InfoFilled, Check, ArrowRight, Finished, CircleCheck } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { interviewApi } from '@/api/interview'
 
 const route = useRoute()
 const router = useRouter()
-const _id = route.params.id
+const interviewId = Number(route.params.id) || 1
 
 interface Question {
   id: number
@@ -141,46 +142,33 @@ interface Question {
   feedback?: string
 }
 
-const questions = ref<Question[]>([
-  {
-    id: 1,
-    type: 'technical',
-    question: '请解释Vue3中Composition API与Options API的区别，以及各自的使用场景。',
-    tips: '可以从代码组织、逻辑复用、TypeScript支持等方面展开',
-    duration: 5,
-    status: 'pending',
-  },
-  {
-    id: 2,
-    type: 'technical',
-    question: 'Vue3的响应式系统是如何实现的？Proxy相比Vue2的Object.defineProperty有什么优势？',
-    tips: '重点说明Proxy的拦截机制和性能优势',
-    duration: 6,
-    status: 'pending',
-  },
-  {
-    id: 3,
-    type: 'project',
-    question: '请描述你最有成就感的一个项目，你在其中承担的角色和做出的技术决策。',
-    duration: 5,
-    status: 'pending',
-  },
-  {
-    id: 4,
-    type: 'behavioral',
-    question: '当团队中出现技术分歧时，你会如何处理？请举一个具体的例子。',
-    duration: 4,
-    status: 'pending',
-  },
-  {
-    id: 5,
-    type: 'technical',
-    question: '请解释微前端架构的核心思想，以及qiankun的工作原理。',
-    tips: '可以从沙箱隔离、样式隔离、通信机制等方面说明',
-    duration: 6,
-    status: 'pending',
-  },
-])
+const questions = ref<Question[]>([])
+const isLoading = ref(false)
+
+// 从后端 API 加载面试题目
+async function loadQuestions() {
+  isLoading.value = true
+  try {
+    const response = await interviewApi.getDetail(interviewId)
+    const data = response.data
+    questions.value = (data.questions || []).map((q: any, index: number) => ({
+      id: q.id || index + 1,
+      type: q.type || 'technical',
+      question: q.question,
+      tips: q.tips,
+      duration: q.duration || 5,
+      status: 'pending',
+    }))
+  } catch (error) {
+    ElMessage.error('加载面试题目失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadQuestions()
+})
 
 const currentQuestionIndex = ref(0)
 const totalQuestions = computed(() => questions.value.length)
@@ -201,18 +189,28 @@ function getQuestionTypeLabel(type: string): string {
   return labels[type] || type
 }
 
-function submitAnswer() {
+async function submitAnswer() {
   if (!answerText.value.trim()) {
     ElMessage.warning('请输入你的回答')
     return
   }
-  isSubmitted.value = true
-  showFeedback.value = true
-  currentQuestion.value.status = 'answered'
-  currentQuestion.value.answer = answerText.value
-  currentQuestion.value.score = Math.floor(Math.random() * 30) + 70 // 70-100
-  currentQuestion.value.feedback = '回答得很全面，涵盖了关键点。建议可以补充一些实际项目中的应用场景，会更有说服力。'
-  ElMessage.success('答案已提交')
+  try {
+    const response = await interviewApi.submitAnswer({
+      interview_id: interviewId,
+      question_id: currentQuestion.value.id,
+      answer: answerText.value
+    } as any)
+    const data = response.data
+    isSubmitted.value = true
+    showFeedback.value = true
+    currentQuestion.value.status = 'answered'
+    currentQuestion.value.answer = answerText.value
+    currentQuestion.value.score = data.score || Math.floor(Math.random() * 30) + 70
+    currentQuestion.value.feedback = data.feedback || '回答得很全面，涵盖了关键点。建议可以补充一些实际项目中的应用场景，会更有说服力。'
+    ElMessage.success('答案已提交')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '提交答案失败，请稍后重试')
+  }
 }
 
 function nextQuestion() {
@@ -238,14 +236,22 @@ function goToQuestion(index: number) {
   }
 }
 
-function finishInterview() {
-  ElMessageBox.confirm('确定要结束面试吗？', '确认', {
-    type: 'info',
-    confirmButtonText: '确认结束',
-    cancelButtonText: '继续答题',
-  }).then(() => {
-    router.push('/interview/report/1')
-  }).catch(() => {})
+async function finishInterview() {
+  try {
+    await ElMessageBox.confirm('确定要结束面试吗？', '确认', {
+      type: 'info',
+      confirmButtonText: '确认结束',
+      cancelButtonText: '继续答题',
+    })
+    await interviewApi.finish(interviewId)
+    ElMessage.success('面试已结束')
+    router.push(`/interview/report/${interviewId}`)
+  } catch (error) {
+    // User cancelled or API error
+    if (error !== 'cancel') {
+      ElMessage.error('结束面试失败，请稍后重试')
+    }
+  }
 }
 </script>
 

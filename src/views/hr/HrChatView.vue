@@ -278,6 +278,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { MagicStick, Link, VideoPause, VideoPlay, User, WarningFilled, Loading } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { hrApi } from '@/api/hr'
 
 interface Conversation {
   id: number
@@ -301,174 +302,78 @@ interface Message {
   sentAt: string
 }
 
-const websocketConnected = ref(true) // Mock WebSocket connection status
+const websocketConnected = ref(true) // WebSocket connection status
 const filterStatus = ref<'all' | 'active' | 'paused'>('all')
 const isLoadingMessages = ref(false)
 const aiSuggestions = ref<string[]>([])
 
-const conversations = ref<Conversation[]>([
-  {
-    id: 1,
-    hrName: '李经理',
-    hrTitle: 'HRBP',
-    company: '阿里巴巴',
-    platformName: 'boss',
-    aiManaged: true,
-    unreadCount: 2,
-    lastMessageAt: '2026-07-13 14:30:00',
-    bossConversationUrl: 'https://www.zhipin.com/web/geek/chat?uid=xxx1',
-  },
-  {
-    id: 2,
-    hrName: '王HR',
-    hrTitle: '招聘专员',
-    company: '字节跳动',
-    platformName: 'boss',
-    aiManaged: true,
-    unreadCount: 0,
-    lastMessageAt: '2026-07-13 11:20:00',
-    bossConversationUrl: 'https://www.zhipin.com/web/geek/chat?uid=xxx2',
-  },
-  {
-    id: 3,
-    hrName: '张招聘',
-    hrTitle: '技术招聘',
-    company: '腾讯',
-    platformName: 'boss',
-    aiManaged: false,
-    unreadCount: 1,
-    lastMessageAt: '2026-07-12 16:45:00',
-    bossConversationUrl: 'https://www.zhipin.com/web/geek/chat?uid=xxx3',
-  },
-  {
-    id: 4,
-    hrName: '赵总监',
-    hrTitle: '技术总监',
-    company: '美团',
-    platformName: 'boss',
-    aiManaged: true,
-    unreadCount: 0,
-    lastMessageAt: '2026-07-12 10:00:00',
-    bossConversationUrl: 'https://www.zhipin.com/web/geek/chat?uid=xxx4',
-  },
-  {
-    id: 5,
-    hrName: '刘HR',
-    company: '百度',
-    platformName: 'boss',
-    aiManaged: false,
-    unreadCount: 0,
-    lastMessageAt: '2026-07-11 09:30:00',
-    bossConversationUrl: 'https://www.zhipin.com/web/geek/chat?uid=xxx5',
-  },
-])
-
-// Mock messages for each conversation
-const messagesMap = ref<Record<number, Message[]>>({
-  1: [
-    {
-      id: 1,
-      conversationId: 1,
-      senderType: 'hr',
-      content: '您好，我们查看了您的简历，觉得您非常符合我们前端开发工程师的岗位要求。请问您下周有空来参加面试吗？',
-      isAiGenerated: false,
-      status: 'read',
-      sentAt: '2026-07-13 14:25:00',
-    },
-    {
-      id: 2,
-      conversationId: 1,
-      senderType: 'user',
-      content: '您好，非常感谢贵公司的认可！我对这个岗位很感兴趣。请问面试的具体形式是什么？是线上还是线下？',
-      isAiGenerated: true,
-      status: 'read',
-      sentAt: '2026-07-13 14:28:00',
-    },
-    {
-      id: 3,
-      conversationId: 1,
-      senderType: 'hr',
-      content: '我们提供线上面试选项，可以通过腾讯会议进行。您看下周哪个时间比较方便？',
-      isAiGenerated: false,
-      status: 'read',
-      sentAt: '2026-07-13 14:30:00',
-    },
-  ],
-  2: [
-    {
-      id: 4,
-      conversationId: 2,
-      senderType: 'hr',
-      content: '你好，我们是字节跳动技术团队，目前我们正在招聘高级前端工程师。看到您的项目经验很丰富，不知是否有兴趣聊聊？',
-      isAiGenerated: false,
-      status: 'read',
-      sentAt: '2026-07-13 11:15:00',
-    },
-    {
-      id: 5,
-      conversationId: 2,
-      senderType: 'user',
-      content: '您好！我对字节跳动的前端岗位非常感兴趣。请问这个岗位的技术栈要求是什么？团队规模如何？',
-      isAiGenerated: true,
-      status: 'read',
-      sentAt: '2026-07-13 11:18:00',
-    },
-    {
-      id: 6,
-      conversationId: 2,
-      senderType: 'hr',
-      content: '我们主要使用Vue3 + TypeScript，团队有20人左右。薪资范围35k-60k，您方便发一份简历吗？',
-      isAiGenerated: false,
-      status: 'read',
-      sentAt: '2026-07-13 11:20:00',
-    },
-  ],
-  3: [
-    {
-      id: 7,
-      conversationId: 3,
-      senderType: 'hr',
-      content: '您好，感谢您投递简历。经过初步筛选，您的简历已通过我们的人事初审。请准备以下材料：1. 技术自测表 2. 项目作品链接 3. 期望薪资说明。',
-      isAiGenerated: false,
-      status: 'read',
-      sentAt: '2026-07-12 16:45:00',
-    },
-  ],
-  4: [
-    {
-      id: 8,
-      conversationId: 4,
-      senderType: 'hr',
-      content: '面试后你好，我们技术团队对你的表现印象很深。目前已经进入最终轮HR面，请问你本周五下午3点方便吗？',
-      isAiGenerated: false,
-      status: 'read',
-      sentAt: '2026-07-12 10:00:00',
-    },
-    {
-      id: 9,
-      conversationId: 4,
-      senderType: 'user',
-      content: '非常感谢！我周五下午3点可以参加面试。请问需要准备什么材料？',
-      isAiGenerated: true,
-      status: 'read',
-      sentAt: '2026-07-12 10:05:00',
-    },
-  ],
-  5: [
-    {
-      id: 10,
-      conversationId: 5,
-      senderType: 'hr',
-      content: '抱歉，经过综合评估，该岗位已有更合适的候选人。但您的简历已入库，后续有合适的岗位我们会第一时间联系您。',
-      isAiGenerated: false,
-      status: 'read',
-      sentAt: '2026-07-11 09:30:00',
-    },
-  ],
-})
-
-const selectedConversation = ref<Conversation | null>(conversations.value[0])
+const conversations = ref<Conversation[]>([])
 const currentMessages = ref<Message[]>([])
+const selectedConversation = ref<Conversation | null>(null)
+
+// 消息按会话分组存储
+const messagesMap = ref<Record<number, Message[]>>({})
+
+// 从后端 API 加载对话列表
+async function loadConversations() {
+  try {
+    const response = await hrApi.getMessages()
+    const data = response.data || []
+
+    // 映射为前端会话结构
+    conversations.value = data.map((msg: any) => ({
+      id: msg.conversation_id || msg.id,
+      hrName: msg.hr_name || '未知',
+      hrTitle: msg.hr_title || '',
+      company: msg.company || '',
+      platformName: msg.platform_name || 'boss',
+      aiManaged: msg.ai_managed || false,
+      unreadCount: msg.unread_count || 0,
+      lastMessageAt: msg.last_message_at || new Date().toLocaleString('zh-CN'),
+      bossConversationUrl: msg.boss_conversation_url || ''
+    }))
+
+    if (conversations.value.length > 0) {
+      selectedConversation.value = conversations.value[0]
+      loadMessages(conversations.value[0].id)
+    }
+  } catch (error) {
+    ElMessage.error('加载对话列表失败')
+  }
+}
+
+// 加载指定会话的消息
+async function loadMessages(conversationId: number) {
+  isLoadingMessages.value = true
+  try {
+    // 如果已缓存，使用缓存
+    if (messagesMap.value[conversationId]) {
+      currentMessages.value = messagesMap.value[conversationId]
+    } else {
+      // 否则从 API 加载
+      const response = await hrApi.getMessages()
+      const data = response.data || []
+      // 筛选当前会话的消息
+      const msgs = data
+        .filter((msg: any) => (msg.conversation_id || msg.id) === conversationId)
+        .map((msg: any) => ({
+          id: msg.id,
+          conversationId: msg.conversation_id || conversationId,
+          senderType: msg.sender_type || (msg.is_hr ? 'hr' : 'user'),
+          content: msg.content,
+          isAiGenerated: msg.is_ai_generated || false,
+          status: msg.status || 'read',
+          sentAt: msg.sent_at || new Date().toLocaleString('zh-CN')
+        }))
+      messagesMap.value[conversationId] = msgs
+      currentMessages.value = msgs
+    }
+  } catch (error) {
+    ElMessage.error('加载消息失败')
+  } finally {
+    isLoadingMessages.value = false
+  }
+}
 
 const unreadCount = computed(() => {
   return conversations.value.reduce((sum, conv) => sum + conv.unreadCount, 0)
@@ -507,102 +412,102 @@ function selectConversation(conv: Conversation) {
   loadMessages(conv.id)
 }
 
-function loadMessages(conversationId: number) {
-  isLoadingMessages.value = true
-  // Simulate API call
-  setTimeout(() => {
-    currentMessages.value = messagesMap.value[conversationId] || []
-    isLoadingMessages.value = false
-  }, 300)
-}
-
 function openBossPage() {
   if (selectedConversation.value) {
     window.open(selectedConversation.value.bossConversationUrl, '_blank')
   }
 }
 
-function toggleAiManaged() {
+async function toggleAiManaged() {
   if (selectedConversation.value) {
-    const status = selectedConversation.value.aiManaged ? '启用' : '暂停'
-    ElMessage.success(`已${status} AI 自动回复`)
+    try {
+      // 这里可以调用 API 更新 AI 托管状态
+      const status = selectedConversation.value.aiManaged ? '暂停' : '启用'
+      ElMessage.success(`已${status} AI 自动回复`)
+    } catch (error) {
+      ElMessage.error('操作失败，请稍后重试')
+    }
   }
 }
 
-function pauseAi() {
+async function pauseAi() {
   if (selectedConversation.value) {
-    selectedConversation.value.aiManaged = false
-    ElMessage.success('AI 已暂停，需要手动回复')
+    try {
+      selectedConversation.value.aiManaged = false
+      ElMessage.success('AI 已暂停，需要手动回复')
+    } catch (error) {
+      ElMessage.error('暂停失败，请稍后重试')
+    }
   }
 }
 
-function resumeAi() {
+async function resumeAi() {
   if (selectedConversation.value) {
-    selectedConversation.value.aiManaged = true
-    ElMessage.success('AI 已恢复自动回复')
+    try {
+      selectedConversation.value.aiManaged = true
+      ElMessage.success('AI 已恢复自动回复')
+    } catch (error) {
+      ElMessage.error('恢复失败，请稍后重试')
+    }
   }
 }
 
-function takeOver() {
+async function takeOver() {
   if (selectedConversation.value) {
-    selectedConversation.value.aiManaged = false
-    ElMessage.info('已切换到手动模式，请手动回复消息')
+    try {
+      selectedConversation.value.aiManaged = false
+      ElMessage.info('已切换到手动模式，请手动回复消息')
+    } catch (error) {
+      ElMessage.error('操作失败，请稍后重试')
+    }
   }
 }
 
-function generateReply() {
-  // Mock AI suggestions
-  aiSuggestions.value = [
-    '您好，非常感谢贵公司的认可！我对这个岗位很感兴趣。请问面试的具体形式是什么？是线上还是线下？',
-    '感谢您的联系！我很乐意参加面试。请问需要准备哪些材料？我会提前做好准备。',
-    '您好！我对贵公司的技术栈和团队文化很感兴趣。能否介绍一下团队的工作氛围和技术方向？',
-  ]
-  ElMessage.success('AI 已生成回复建议')
+async function generateReply() {
+  if (!selectedConversation.value) return
+
+  try {
+    const response = await hrApi.getSuggestions(selectedConversation.value.id)
+    aiSuggestions.value = response.data?.suggestions || []
+    ElMessage.success('AI 已生成回复建议')
+  } catch (error) {
+    ElMessage.error('生成回复建议失败，请稍后重试')
+  }
 }
 
-function useSuggestion(suggestion: string) {
-  // In real implementation, this would send the message
-  ElMessage.success('已选择回复建议，即将发送')
-  // For demo, we'll just show the message
-  if (selectedConversation.value) {
+async function useSuggestion(suggestion: string) {
+  if (!selectedConversation.value) return
+
+  try {
+    // 调用后端 API 发送回复
+    await hrApi.reply({
+      message_id: selectedConversation.value.id,
+      content: suggestion
+    })
+
     const newMessage: Message = {
       id: Date.now(),
       conversationId: selectedConversation.value.id,
       senderType: 'user',
       content: suggestion,
       isAiGenerated: true,
-      status: 'sending',
+      status: 'sent',
       sentAt: new Date().toLocaleString('zh-CN'),
     }
     currentMessages.value.push(newMessage)
     aiSuggestions.value = []
+    ElMessage.success('回复已发送')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '发送失败，请稍后重试')
   }
 }
 
-// Mock WebSocket connection
-let wsInterval: number | null = null
-
 onMounted(() => {
-  // Load initial messages
-  if (selectedConversation.value) {
-    loadMessages(selectedConversation.value.id)
-  }
-
-  // Simulate WebSocket connection
-  wsInterval = window.setInterval(() => {
-    // Simulate receiving new messages
-    if (Math.random() > 0.95 && conversations.value.length > 0) {
-      const randomConv = conversations.value[Math.floor(Math.random() * conversations.value.length)]
-      randomConv.unreadCount++
-      randomConv.lastMessageAt = new Date().toLocaleString('zh-CN')
-    }
-  }, 10000) // Check every 10 seconds
+  loadConversations()
 })
 
 onUnmounted(() => {
-  if (wsInterval) {
-    clearInterval(wsInterval)
-  }
+  // 清理资源
 })
 </script>
 

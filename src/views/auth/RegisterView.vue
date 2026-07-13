@@ -123,6 +123,7 @@ import { useRouter } from 'vue-router'
 import { User, Message, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
+import { authApi } from '@/api/auth'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -172,16 +173,25 @@ const handleRegister = async () => {
 
   loading.value = true
 
-  // Simulate API call
-  setTimeout(() => {
+  try {
+    // 调用后端注册 API
+    await authApi.register({
+      username: form.username,
+      email: form.email,
+      password: form.password
+    })
+
     ElMessage.success({
       message: '注册成功！请登录您的账号',
       duration: 2000
     })
 
-    loading.value = false
     router.push('/login')
-  }, 1500)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '注册失败，请稍后重试')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 

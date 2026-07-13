@@ -154,16 +154,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { Plus, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { agentApi } from '@/api/agent'
 
-const stats = [
-  { label: '运行中', value: 2, icon: '⚡', bgColor: '#dbeafe' },
-  { label: '已完成', value: 15, icon: '✅', bgColor: '#d1fae5' },
-  { label: '投递成功', value: 23, icon: '📨', bgColor: '#fef3c7' },
-  { label: '面试邀请', value: 8, icon: '🎯', bgColor: '#fce7f3' },
-]
+const stats = ref([
+  { label: '运行中', value: 0, icon: '⚡', bgColor: '#dbeafe' },
+  { label: '已完成', value: 0, icon: '✅', bgColor: '#d1fae5' },
+  { label: '投递成功', value: 0, icon: '📨', bgColor: '#fef3c7' },
+  { label: '面试邀请', value: 0, icon: '🎯', bgColor: '#fce7f3' },
+])
 
 const cities = ['北京', '上海', '深圳', '杭州', '广州', '成都', '南京', '武汉']
 
@@ -178,68 +179,37 @@ interface Task {
   applications: { id: number; company: string; position: string; status: 'submitted' | 'viewed' | 'interview' | 'rejected'; appliedAt: string }[]
 }
 
-const tasks = ref<Task[]>([
-  {
-    id: 1,
-    name: '前端工程师职位搜索',
-    type: 'search',
-    status: 'running',
-    progress: 65,
-    createdAt: '2026-07-13 09:00',
-    logs: [
-      { id: 1, message: '开始搜索前端工程师相关职位...', level: 'info', time: '09:00:00' },
-      { id: 2, message: '已找到 156 个匹配职位', level: 'info', time: '09:02:30' },
-      { id: 3, message: '正在筛选薪资范围 20k-40k 的职位', level: 'info', time: '09:05:15' },
-    ],
-    applications: [],
-  },
-  {
-    id: 2,
-    name: '自动投递任务',
-    type: 'apply',
-    status: 'running',
-    progress: 40,
-    createdAt: '2026-07-13 10:00',
-    logs: [
-      { id: 1, message: '开始自动投递...', level: 'info', time: '10:00:00' },
-      { id: 2, message: '已成功投递阿里巴巴', level: 'info', time: '10:02:00' },
-      { id: 3, message: '已成功投递字节跳动', level: 'info', time: '10:05:00' },
-      { id: 4, message: '投递腾讯失败：简历不符合要求', level: 'warn', time: '10:08:00' },
-    ],
-    applications: [
-      { id: 1, company: '阿里巴巴', position: '前端工程师', status: 'viewed', appliedAt: '2026-07-13 10:02' },
-      { id: 2, company: '字节跳动', position: '前端技术专家', status: 'submitted', appliedAt: '2026-07-13 10:05' },
-    ],
-  },
-  {
-    id: 3,
-    name: '职位筛选任务',
-    type: 'filter',
-    status: 'completed',
-    progress: 100,
-    createdAt: '2026-07-12 14:00',
-    logs: [
-      { id: 1, message: '开始筛选职位...', level: 'info', time: '14:00:00' },
-      { id: 2, message: '筛选完成，共找到 45 个高质量职位', level: 'info', time: '14:30:00' },
-    ],
-    applications: [],
-  },
-  {
-    id: 4,
-    name: '进度跟踪任务',
-    type: 'track',
-    status: 'paused',
-    progress: 30,
-    createdAt: '2026-07-11 08:00',
-    logs: [
-      { id: 1, message: '开始跟踪投递进度...', level: 'info', time: '08:00:00' },
-      { id: 2, message: '任务已暂停', level: 'warn', time: '12:00:00' },
-    ],
-    applications: [
-      { id: 1, company: '美团', position: '前端开发工程师', status: 'interview', appliedAt: '2026-07-11 09:00' },
-    ],
-  },
-])
+const tasks = ref<Task[]>([])
+
+// 从后端 API 加载任务列表
+async function loadTasks() {
+  try {
+    const response = await agentApi.getTasks()
+    tasks.value = (response.data || []).map((task: any) => ({
+      id: task.id,
+      name: task.name,
+      type: task.type,
+      status: task.status,
+      progress: task.progress || 0,
+      createdAt: task.created_at,
+      logs: task.logs || [],
+      applications: task.applications || []
+    }))
+
+    // 更新统计数据
+    stats.value[0].value = tasks.value.filter(t => t.status === 'running').length
+    stats.value[1].value = tasks.value.filter(t => t.status === 'completed').length
+    stats.value[2].value = tasks.value.reduce((sum, t) => sum + (t.applications?.length || 0), 0)
+    stats.value[3].value = tasks.value.reduce((sum, t) =>
+      sum + (t.applications?.filter(a => a.status === 'interview').length || 0), 0)
+  } catch (error) {
+    ElMessage.error('加载任务列表失败')
+  }
+}
+
+onMounted(() => {
+  loadTasks()
+})
 
 const showCreateDialog = ref(false)
 const showDetailDrawer = ref(false)
@@ -294,59 +264,74 @@ function viewDetails(id: number) {
   showDetailDrawer.value = true
 }
 
-function pauseTask(id: number) {
-  const task = tasks.value.find(t => t.id === id)
-  if (task) {
-    task.status = 'paused'
+async function pauseTask(id: number) {
+  try {
+    await agentApi.pauseTask(id)
     ElMessage.success('任务已暂停')
+    loadTasks()
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '暂停失败，请稍后重试')
   }
 }
 
-function resumeTask(id: number) {
-  const task = tasks.value.find(t => t.id === id)
-  if (task) {
-    task.status = 'running'
+async function resumeTask(id: number) {
+  try {
+    await agentApi.startTask(id)
     ElMessage.success('任务已恢复')
+    loadTasks()
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '恢复失败，请稍后重试')
   }
 }
 
-function startTask(id: number) {
-  const task = tasks.value.find(t => t.id === id)
-  if (task) {
-    task.status = 'running'
+async function startTask(id: number) {
+  try {
+    await agentApi.startTask(id)
     ElMessage.success('任务已启动')
+    loadTasks()
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '启动失败，请稍后重试')
   }
 }
 
-function deleteTask(id: number) {
-  ElMessageBox.confirm('确定要删除此任务吗？', '确认删除', {
-    type: 'warning',
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-  }).then(() => {
-    tasks.value = tasks.value.filter(t => t.id !== id)
+async function deleteTask(id: number) {
+  try {
+    await ElMessageBox.confirm('确定要删除此任务吗？', '确认删除', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    await agentApi.deleteTask(id)
     ElMessage.success('任务已删除')
-  }).catch(() => {})
+    loadTasks()
+  } catch (error) {
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败，请稍后重试')
+    }
+  }
 }
 
-function createTask() {
+async function createTask() {
   if (!newTask.targetPosition) {
     ElMessage.warning('请填写目标岗位')
     return
   }
-  const task: Task = {
-    id: Date.now(),
-    name: `${newTask.targetPosition} - ${getTaskTypeLabel(newTask.type)}任务`,
-    type: newTask.type as any,
-    status: 'pending',
-    progress: 0,
-    createdAt: new Date().toLocaleString('zh-CN'),
-    logs: [{ id: 1, message: '任务已创建，等待启动', level: 'info', time: new Date().toLocaleTimeString('zh-CN') }],
-    applications: [],
+  try {
+    await agentApi.createTask({
+      name: `${newTask.targetPosition} - ${getTaskTypeLabel(newTask.type)}任务`,
+      type: newTask.type,
+      target_position: newTask.targetPosition,
+      target_cities: newTask.targetCities,
+      salary_min: newTask.salaryMin,
+      salary_max: newTask.salaryMax,
+      frequency: newTask.frequency
+    } as any)
+    showCreateDialog.value = false
+    ElMessage.success('任务创建成功')
+    loadTasks()
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '创建失败，请稍后重试')
   }
-  tasks.value.unshift(task)
-  showCreateDialog.value = false
-  ElMessage.success('任务创建成功')
 }
 </script>
 

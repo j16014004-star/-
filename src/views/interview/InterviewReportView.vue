@@ -155,8 +155,30 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus'
 import ScoreRing from '@/components/business/ScoreRing.vue'
 import { CircleCheck, Select, WarningFilled, Warning } from '@element-plus/icons-vue'
+import { interviewApi } from '@/api/interview'
+
+const route = useRoute()
+const router = useRouter()
+const interviewId = Number(route.params.id) || 1
+const isLoading = ref(false)
+
+const report = ref<any>({
+  overallScore: 0,
+  totalQuestions: 0,
+  avgScore: 0,
+  duration: 0,
+  dimensionScores: {},
+  summary: '',
+  strengths: [],
+  weaknesses: [],
+  suggestions: [],
+  questionReview: [],
+})
 
 function getScoreLevel(score: number): string {
   if (score >= 90) return '优秀'
@@ -181,73 +203,34 @@ function getDimensionLabel(key: string): string {
   return labels[key] || key
 }
 
-const report = {
-  overallScore: 82,
-  totalQuestions: 5,
-  avgScore: 82,
-  duration: 26,
-  dimensionScores: {
-    technical: 85,
-    behavioral: 78,
-    communication: 88,
-    logic: 75,
-  },
-  summary: '整体表现良好，展现了扎实的前端技术基础和良好的沟通能力。在Vue3核心原理方面理解深入，能够清晰地解释Composition API和响应式系统的设计思想。在行为面试环节表现稳定，展现了良好的团队协作意识。逻辑思维能力有进一步提升的空间，建议加强系统性思考和问题拆解能力。',
-  strengths: [
-    'Vue3 Composition API理解深入，能清晰对比Options API的优劣',
-    '对Proxy响应式系统的底层原理有扎实掌握',
-    '沟通表达清晰，能够用简洁的语言解释复杂概念',
-    '项目经验丰富，有实际的企业级开发经验',
-  ],
-  weaknesses: [
-    '微前端架构原理掌握不够深入，缺乏实际项目经验',
-    '算法和数据结构基础有待加强',
-    '系统设计能力需要进一步提升',
-  ],
-  suggestions: [
-    { title: '深入学习微前端架构', desc: '通过实际项目练习qiankun框架，理解沙箱隔离和通信机制' },
-    { title: '强化算法训练', desc: '建议每周完成3-5道LeetCode题目，重点练习动态规划和树相关算法' },
-    { title: '提升系统设计能力', desc: '学习系统设计方法论，阅读《系统设计面试指南》等书籍' },
-    { title: '扩大技术视野', desc: '关注业界前沿技术趋势，参与技术社区和开源项目' },
-  ],
-  questionReview: [
-    {
-      id: 1,
-      question: '请解释Vue3中Composition API与Options API的区别，以及各自的使用场景。',
-      answer: 'Composition API相比Options API有更好的逻辑复用能力，通过setup函数可以将相关逻辑组织在一起，而不是分散在data/methods/computed等选项中。特别适合大型项目和需要复用业务逻辑的场景。Options API在小型组件中仍然简洁好用...',
-      score: 88,
-      feedback: '回答很全面，涵盖了核心区别和使用场景。建议补充一些具体的代码示例。',
-    },
-    {
-      id: 2,
-      question: 'Vue3的响应式系统是如何实现的？Proxy相比Object.defineProperty有什么优势？',
-      answer: 'Vue3使用ES6 Proxy作为响应式系统的核心，通过代理对象来拦截get/set等操作，实现数据变化的自动追踪。相比Vue2的Object.defineProperty，Proxy不需要递归遍历对象的所有属性...',
-      score: 90,
-      feedback: '回答准确且深入，清楚地说明了Proxy的优势。',
-    },
-    {
-      id: 3,
-      question: '请描述你最有成就感的一个项目，你在其中承担的角色和做出的技术决策。',
-      answer: '我之前负责一个企业级后台管理系统的重构项目。在项目中，我将Vue2升级到Vue3，使用Composition API重构了业务逻辑，引入了TypeScript提升代码质量...',
-      score: 85,
-      feedback: '项目描述清晰，建议用量化数据展示项目成果（如性能提升百分比）。',
-    },
-    {
-      id: 4,
-      question: '当团队中出现技术分歧时，你会如何处理？',
-      answer: '我认为技术分歧是正常的，关键是要基于数据和事实来做决策。我通常会先充分了解各方观点，然后做一个小型的POC来验证不同方案的可行性...',
-      score: 80,
-      feedback: '回答展示了良好的沟通能力和决策思维。',
-    },
-    {
-      id: 5,
-      question: '请解释微前端架构的核心思想，以及qiankun的工作原理。',
-      answer: '微前端的核心思想是将一个大型前端应用拆分成多个小型、独立的应用，每个应用可以独立开发、独立部署。qiankun是基于single-spa封装的...',
-      score: 70,
-      feedback: '基本概念理解正确，但对沙箱隔离和样式隔离的具体实现细节不够深入。',
-    },
-  ],
+// 从后端 API 加载面试报告
+async function loadReport() {
+  isLoading.value = true
+  try {
+    const response = await interviewApi.getReport(interviewId)
+    const data = response.data
+    report.value = {
+      overallScore: data.overall_score || 0,
+      totalQuestions: data.total_questions || 0,
+      avgScore: data.avg_score || 0,
+      duration: data.duration || 0,
+      dimensionScores: data.dimension_scores || {},
+      summary: data.summary || '',
+      strengths: data.strengths || [],
+      weaknesses: data.weaknesses || [],
+      suggestions: data.suggestions || [],
+      questionReview: data.question_review || [],
+    }
+  } catch (error) {
+    ElMessage.error('加载面试报告失败')
+  } finally {
+    isLoading.value = false
+  }
 }
+
+onMounted(() => {
+  loadReport()
+})
 </script>
 
 <style scoped>

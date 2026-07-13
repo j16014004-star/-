@@ -255,92 +255,93 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   ArrowLeft, Edit, Refresh, User, School, Briefcase, Coin,
   DataAnalysis, CircleCheck, WarningFilled, Lightbulb
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { resumeApi } from '@/api/resume'
 
 const route = useRoute()
 const router = useRouter()
 const reAnalyzing = ref(false)
 
+const resumeId = Number(route.params.id) || 1
+const reAnalyzing = ref(false)
+const isLoading = ref(true)
+
 const resume = ref({
-  id: Number(route.params.id) || 1,
-  title: '前端工程师_张三',
+  id: resumeId,
+  title: '',
   fileType: 'pdf',
-  uploadDate: '2026-07-10',
-  analyzed: true
+  uploadDate: '',
+  analyzed: false
 })
 
-const resumeContent = {
-  name: '张三',
-  phone: '138-0000-0000',
-  email: 'zhangsan@example.com',
-  experience: '5年',
-  education: '本科',
-  city: '上海',
-  educationList: [
-    { school: '上海交通大学', major: '计算机科学与技术', degree: '本科', period: '2017 - 2021' }
-  ],
-  workList: [
-    {
-      company: '字节跳动',
-      position: '前端开发工程师',
-      period: '2023 - 至今',
-      description: '负责核心业务前端开发，参与组件库建设，优化页面性能'
-    },
-    {
-      company: '美团',
-      position: '前端开发工程师',
-      period: '2021 - 2023',
-      description: '参与商家端后台管理系统开发，实现复杂交互功能'
-    }
-  ],
-  skills: ['Vue.js', 'React', 'TypeScript', 'JavaScript', 'CSS/SCSS', 'Webpack', 'Node.js', 'Git']
-}
+const resumeContent = ref({
+  name: '',
+  phone: '',
+  email: '',
+  experience: '',
+  education: '',
+  city: '',
+  educationList: [] as any[],
+  workList: [] as any[],
+  skills: [] as string[]
+})
 
 const analysis = ref({
-  overallScore: 85,
-  dimensions: [
-    { name: '格式规范', score: 90 },
-    { name: '内容完整', score: 82 },
-    { name: '岗位匹配', score: 78 },
-    { name: '技能展示', score: 88 },
-    { name: '项目经验', score: 85 }
-  ],
-  strengths: [
-    '技术栈覆盖面广，掌握主流前端框架',
-    '项目经验丰富，有互联网大厂背景',
-    '教育背景优秀，专业对口',
-    '简历排版清晰，结构合理'
-  ],
-  weaknesses: [
-    '项目描述偏向功能罗列，缺少量化成果',
-    '缺少开源项目和个人技术博客链接',
-    '部分技能描述不够具体'
-  ],
-  suggestions: [
-    {
-      title: '量化项目成果',
-      detail: '使用具体数据描述项目成果，如性能提升百分比、用户覆盖量等'
-    },
-    {
-      title: '补充个人项目',
-      detail: '添加GitHub链接或开源项目参与经历，展示技术热情'
-    },
-    {
-      title: '优化技能描述',
-      detail: '按熟练程度分级展示技能，突出核心竞争力和深度'
-    },
-    {
-      title: '增加关键词',
-      detail: '补充目标岗位高频要求的关键词，提高ATS匹配率'
+  overallScore: 0,
+  dimensions: [] as any[],
+  strengths: [] as string[],
+  weaknesses: [] as string[],
+  suggestions: [] as any[],
+  missingKeywords: [] as string[]
+})
+
+// 从后端 API 加载简历详情和分析结果
+onMounted(async () => {
+  isLoading.value = true
+  try {
+    const response = await resumeApi.getDetail(resumeId)
+    const data = response.data
+
+    resume.value.title = data.title || '未命名简历'
+    resume.value.fileType = data.file_type || 'pdf'
+    resume.value.uploadDate = data.created_at?.split('T')[0] || ''
+    resume.value.analyzed = !!data.analysis
+
+    if (data.content) {
+      resumeContent.value = {
+        name: data.content.name || '',
+        phone: data.content.phone || '',
+        email: data.content.email || '',
+        experience: data.content.experience || '',
+        education: data.content.education || '',
+        city: data.content.city || '',
+        educationList: data.content.education_list || [],
+        workList: data.content.work_list || [],
+        skills: data.content.skills || []
+      }
     }
-  ],
-  missingKeywords: ['Webpack/Vite', '性能优化', '微前端', '工程化', 'CI/CD', '敏捷开发', 'Jest', 'E2E测试']
+
+    if (data.analysis) {
+      analysis.value = {
+        overallScore: data.analysis.overall_score || 0,
+        dimensions: data.analysis.dimensions || [],
+        strengths: data.analysis.strengths || [],
+        weaknesses: data.analysis.weaknesses || [],
+        suggestions: data.analysis.suggestions || [],
+        missingKeywords: data.analysis.missing_keywords || []
+      }
+    }
+  } catch (error) {
+    ElMessage.error('加载简历详情失败')
+  } finally {
+    isLoading.value = false
+  }
 })
 
 const getScoreColor = (score: number) => {
@@ -363,20 +364,49 @@ const getScoreComment = (score: number) => {
   return '建议重新整理简历'
 }
 
-const startAnalysis = () => {
-  ElMessage.info('开始AI分析...')
-  setTimeout(() => {
+const startAnalysis = async () => {
+  try {
+    ElMessage.info('开始AI分析...')
+    const response = await resumeApi.analyze({ resume_id: resumeId })
+    const data = response.data
+
+    // 更新分析结果
+    analysis.value = {
+      overallScore: data.overall_score || 0,
+      dimensions: data.dimensions || [],
+      strengths: data.strengths || [],
+      weaknesses: data.weaknesses || [],
+      suggestions: data.suggestions || [],
+      missingKeywords: data.missing_keywords || []
+    }
     resume.value.analyzed = true
     ElMessage.success('分析完成')
-  }, 1500)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '分析失败，请稍后重试')
+  }
 }
 
-const handleReAnalyze = () => {
+const handleReAnalyze = async () => {
   reAnalyzing.value = true
-  setTimeout(() => {
-    reAnalyzing.value = false
+  try {
+    const response = await resumeApi.analyze({ resume_id: resumeId })
+    const data = response.data
+
+    // 更新分析结果
+    analysis.value = {
+      overallScore: data.overall_score || 0,
+      dimensions: data.dimensions || [],
+      strengths: data.strengths || [],
+      weaknesses: data.weaknesses || [],
+      suggestions: data.suggestions || [],
+      missingKeywords: data.missing_keywords || []
+    }
     ElMessage.success('重新分析完成')
-  }, 2000)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '分析失败，请稍后重试')
+  } finally {
+    reAnalyzing.value = false
+  }
 }
 
 const handleOptimize = () => {

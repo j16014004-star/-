@@ -136,9 +136,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, nextTick, watch } from 'vue'
+import { ref, reactive, nextTick, onMounted } from 'vue'
 import { Plus, Delete, Promotion } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { chatApi } from '@/api/chat'
 
 interface Session {
   id: number
@@ -153,43 +154,21 @@ interface Message {
   createdAt: string
 }
 
-const sessions = ref<Session[]>([
-  { id: 1, title: '简历优化咨询', updatedAt: '2026-07-13 10:30' },
-  { id: 2, title: '面试准备', updatedAt: '2026-07-12 15:20' },
-  { id: 3, title: '职业规划建议', updatedAt: '2026-07-11 09:15' },
-])
-
-const currentSession = ref<Session | null>(sessions.value[0])
-const initialMessages: Message[] = [
-  {
-    id: 'm1',
-    role: 'assistant',
-    content: '你好！我是AI求职助手。你可以问我关于简历优化、面试准备、职业规划等方面的问题。有什么我可以帮你的吗？',
-    createdAt: '2026-07-13 10:30:00',
-  },
-]
-const messages = ref<Message[]>([...initialMessages])
+const sessions = ref<any[]>([])
+const currentSession = ref<any | null>(null)
+const initialMessages: Message[] = []
+const messages = ref<Message[]>([])
+const isLoading = ref(false)
 
 // 每个会话的消息存储
-const sessionMessagesMap = reactive<Record<number, Message[]>>({
-  1: [...initialMessages],
-  2: [
-    {
-      id: 'm2_1',
-      role: 'assistant',
-      content: '面试准备是一个非常系统的工作。你想了解哪方面的准备？技术面试还是行为面试？',
-      createdAt: '2026-07-12 15:20:00',
-    },
-  ],
-  3: [
-    {
-      id: 'm3_1',
-      role: 'assistant',
-      content: '职业规划是一个长期过程。你目前处于什么阶段？我可以给你针对性的建议。',
-      createdAt: '2026-07-11 09:15:00',
-    },
-  ],
-})
+const sessionMessagesMap = reactive<Record<number, Message[]>>({})
+
+// 自动同步当前消息到会话存储
+watch(messages, (newMessages) => {
+  if (currentSession.value) {
+    sessionMessagesMap[currentSession.value.id] = [...newMessages]
+  }
+}, { deep: true })
 
 // 自动同步当前消息到会话存储
 watch(messages, (newMessages) => {
@@ -199,6 +178,7 @@ watch(messages, (newMessages) => {
 }, { deep: true })
 
 const inputText = ref('')
+const loading = ref(false)
 const isStreaming = ref(false)
 const streamingText = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
@@ -217,8 +197,7 @@ function formatTime(str: string): string {
 }
 
 function formatMessageTime(str: string): string {
-  const parts = str.split(' ')
-  return parts[1] || ''
+  return str
 }
 
 function scrollToBottom() {
@@ -229,44 +208,76 @@ function scrollToBottom() {
   })
 }
 
+// 从后端 API 加载会话列表
+async function loadSessions() {
+  isLoading.value = true
+  try {
+    const response = await chatApi.getSessions()
+    sessions.value = (response.data || []).map((session: any) => ({
+      id: session.id,
+      title: session.title || '未命名会话',
+      updatedAt: session.updated_at || new Date().toLocaleString('zh-CN')
+    }))
+
+    // 选择第一个会话
+    if (sessions.value.length > 0) {
+      await selectSession(sessions.value[0])
+    }
+  } catch (error) {
+    ElMessage.error('加载会话列表失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+// 从后端 API 加载会话消息
+async function loadMessages(sessionId: number) {
+  try {
+    const response = await chatApi.getMessages(sessionId)
+    messages.value = (response.data || []).map((msg: any) => ({
+      id: msg.id.toString(),
+      role: msg.role,
+      content: msg.content,
+      createdAt: msg.created_at || new Date().toLocaleString('zh-CN')
+    }))
+  } catch (error) {
+    ElMessage.error('加载消息列表失败')
+  }
+}
+
 function createSession() {
   const newSession = {
     id: Date.now(),
     title: `新会话 ${sessions.value.length + 1}`,
-    updatedAt: new Date().toLocaleString('zh-CN'),
   }
   sessions.value.unshift(newSession)
   sessionMessagesMap[newSession.id] = []
-  // 保存当前会话消息
-  if (currentSession.value) {
-    sessionMessagesMap[currentSession.value.id] = [...messages.value]
-  }
   currentSession.value = newSession
   messages.value = []
+  loadMessages(newSession.id)
 }
 
-function selectSession(session: Session) {
-  // 保存当前会话的消息
+async function selectSession(session: any) {
   if (currentSession.value) {
-    sessionMessagesMap[currentSession.value.id] = [...messages.value]
+    sessionMessagesMap[currentSession.value.id] = messages.value
   }
   currentSession.value = session
-  // 加载目标会话的消息
-  messages.value = sessionMessagesMap[session.id]
-    ? [...sessionMessagesMap[session.id]]
-    : []
+  await loadMessages(session.id)
 }
 
-function deleteSession(id: number) {
-  sessions.value = sessions.value.filter(s => s.id !== id)
-  delete sessionMessagesMap[id]
-  if (currentSession.value?.id === id) {
-    currentSession.value = sessions.value[0] || null
-    messages.value = currentSession.value && sessionMessagesMap[currentSession.value.id]
-      ? [...sessionMessagesMap[currentSession.value.id]]
-      : []
+async function deleteSession(id: number) {
+  try {
+    await chatApi.deleteSession(id)
+    sessions.value = sessions.value.filter(s => s.id !== id)
+    delete sessionMessagesMap[id]
+    if (currentSession.value?.id === id) {
+      currentSession.value = sessions.value[0] || null
+      messages.value = []
+    }
+    ElMessage.success('会话已删除')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '删除失败，请稍后重试')
   }
-  ElMessage.success('会话已删除')
 }
 
 function sendSuggestion(text: string) {
@@ -288,7 +299,7 @@ function handleSend() {
   const text = inputText.value.trim()
   if (!text || isStreaming.value) return
 
-  // Add user message
+  // 添加用户消息
   messages.value.push({
     id: 'msg_' + Date.now(),
     role: 'user',
@@ -298,34 +309,39 @@ function handleSend() {
   inputText.value = ''
   scrollToBottom()
 
-  // Simulate AI response with streaming
+  // 调用后端 API 发送消息
   isStreaming.value = true
   streamingText.value = ''
 
-  setTimeout(() => {
-    const keyword = Object.keys(aiResponses).find(k => text.includes(k)) || '简历'
-    const response = aiResponses[keyword]
+  chatApi.sendMessage({
+    session_id: currentSession.value?.id,
+    message: text
+  }).then((response) => {
+    const newMessage = response.data
+    streamingText.value = newMessage.content
+    isStreaming.value = false
+    messages.value.push({
+      id: newMessage.id.toString(),
+      role: newMessage.role,
+      content: newMessage.content,
+      createdAt: newMessage.created_at || new Date().toLocaleString('zh-CN')
+    })
+    scrollToBottom()
 
-    let charIndex = 0
-    const streamInterval = setInterval(() => {
-      if (charIndex < response.length) {
-        streamingText.value += response[charIndex]
-        charIndex++
-        scrollToBottom()
-      } else {
-        clearInterval(streamInterval)
-        isStreaming.value = false
-        messages.value.push({
-          id: 'msg_' + Date.now(),
-          role: 'assistant',
-          content: response,
-          createdAt: new Date().toLocaleString('zh-CN'),
-        })
-        scrollToBottom()
-      }
-    }, 30)
-  }, 800)
+    // 更新会话标题
+    if (currentSession.value && messages.value.length <= 1) {
+      currentSession.value.title = text.substring(0, 20) + (text.length > 20 ? '...' : '')
+    }
+  }).catch((error) => {
+    ElMessage.error(error.response?.data?.message || '发送失败，请稍后重试')
+    isStreaming.value = false
+  })
 }
+
+// 页面加载时加载会话列表
+onMounted(() => {
+  loadSessions()
+})
 </script>
 
 <style scoped>

@@ -110,42 +110,41 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { VideoPlay } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { interviewApi } from '@/api/interview'
 
 const router = useRouter()
 
-const interviews = ref([
-  {
-    id: 1,
-    title: 'Vue3技术面试',
-    position: '前端开发工程师',
-    company: '阿里巴巴',
-    status: 'completed',
-    score: 85,
-    date: '2026-07-13 14:00',
-  },
-  {
-    id: 2,
-    title: 'React高级面试',
-    position: '前端技术负责人',
-    company: '字节跳动',
-    status: 'in_progress',
-    score: null,
-    date: '2026-07-12 10:00',
-  },
-  {
-    id: 3,
-    title: '全栈工程师面试',
-    position: '全栈开发工程师',
-    company: '腾讯',
-    status: 'pending',
-    score: null,
-    date: '2026-07-11 15:00',
-  },
-])
+const interviews = ref<any[]>([])
+const isLoading = ref(false)
+
+// 从后端 API 加载面试列表
+async function loadInterviews() {
+  isLoading.value = true
+  try {
+    const response = await interviewApi.getList()
+    interviews.value = (response.data || []).map((item: any) => ({
+      id: item.id,
+      title: item.title,
+      position: item.position,
+      company: item.company || '未指定',
+      status: item.status,
+      score: item.score,
+      date: item.created_at,
+    }))
+  } catch (error) {
+    ElMessage.error('加载面试列表失败')
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(() => {
+  loadInterviews()
+})
 
 // 统计卡片 - 使用 computed 确保动态更新
 const stats = computed(() => [
@@ -181,34 +180,52 @@ function goToRoom(id: number) {
   router.push(`/interview/${id}`)
 }
 
-function deleteInterview(id: number) {
-  ElMessageBox.confirm('确定要删除此面试记录吗？', '确认删除', {
-    type: 'warning',
-    confirmButtonText: '删除',
-    cancelButtonText: '取消',
-  }).then(() => {
+async function deleteInterview(id: number) {
+  try {
+    await ElMessageBox.confirm('确定要删除此面试记录吗？', '确认删除', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    await interviewApi.delete(id)
     interviews.value = interviews.value.filter(i => i.id !== id)
     ElMessage.success('面试记录已删除')
-  }).catch(() => {})
+  } catch (error) {
+    // User cancelled or API error
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败，请稍后重试')
+    }
+  }
 }
 
-function handleCreate() {
+async function handleCreate() {
   if (!newInterview.title || !newInterview.position) {
     ElMessage.warning('请填写面试标题和目标岗位')
     return
   }
-  const interview = {
-    id: Date.now(),
-    title: newInterview.title,
-    position: newInterview.position,
-    company: newInterview.company || '未指定',
-    status: 'pending',
-    score: null,
-    date: new Date().toLocaleString('zh-CN'),
+  try {
+    const response = await interviewApi.create({
+      title: newInterview.title,
+      position: newInterview.position,
+      company: newInterview.company || undefined,
+      question_types: newInterview.questionTypes,
+      question_count: newInterview.questionCount
+    } as any)
+    const interview = response.data
+    interviews.value.unshift({
+      id: interview.id,
+      title: interview.title,
+      position: interview.position,
+      company: interview.company || '未指定',
+      status: interview.status || 'pending',
+      score: null,
+      date: interview.created_at || new Date().toLocaleString('zh-CN'),
+    })
+    showCreateDialog.value = false
+    ElMessage.success('面试已创建，点击"开始"进入面试')
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '创建失败，请稍后重试')
   }
-  interviews.value.unshift(interview)
-  showCreateDialog.value = false
-  ElMessage.success('面试已创建，点击"开始"进入面试')
 }
 </script>
 

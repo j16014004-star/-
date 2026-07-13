@@ -158,13 +158,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ArrowLeft, MagicStick, Download, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import { resumeApi } from '@/api/resume'
 
 const route = useRoute()
-const _id = route.params.id
+const resumeId = Number(route.params.id) || 1
 
 const targetPosition = ref('高级前端工程师')
 const targetCompany = ref('')
@@ -174,90 +175,61 @@ const optimizeProgress = ref(0)
 const showResult = ref(false)
 const scoreImprovement = ref(23)
 
-const originalContent = ref(`个人信息
-姓名：张三 | 电话：138****1234 | 邮箱：zhangsan@email.com
+const originalContent = ref('')
+const optimizedContent = ref('')
+const changes = ref<any[]>([])
 
-教育背景
-2018-2022 某某大学 计算机科学与技术 本科
-
-工作经历
-2022.06-至今 某科技公司 前端开发工程师
-- 负责公司后台管理系统的开发和维护
-- 使用Vue3和Element Plus开发新功能
-- 参与代码审查和技术方案评审
-
-技能
-HTML/CSS/JavaScript, Vue.js, React, Node.js, TypeScript`)
-
-const optimizedContent = ref(`个人信息
-张三
-📱 138****1234 | 📧 zhangsan@email.com | 🔗 GitHub: github.com/zhangsan
-
-教育背景
-2018-2022 某某大学 | 计算机科学与技术 | 本科
-核心课程：数据结构与算法（92分）、Web开发技术（95分）、软件工程（88分）
-
-工作经历
-2022.06-至今 某科技公司 | 前端开发工程师
-
-✦ 主导开发企业级后台管理系统，服务5000+日活用户，系统可用性达99.9%
-✦ 基于Vue3 + TypeScript + Element Plus架构重构前端模块，页面加载速度提升40%
-✦ 设计并实现组件化开发规范，输出20+通用业务组件，团队开发效率提升30%
-✦ 推动前端工程化实践，搭建CI/CD流水线，部署效率提升60%
-
-技术栈
-前端框架：Vue3 (精通) | React (熟练) | Next.js
-语言：TypeScript | JavaScript (ES6+) | HTML5/CSS3
-工程化：Vite | Webpack | ESLint | Jest | Cypress
-后端：Node.js | Express | MySQL | Redis
-DevOps：Git | Docker | CI/CD | Nginx`)
-
-const changes = ref([
-  {
-    section: '个人信息',
-    title: '联系方式格式化',
-    original: '姓名：张三 | 电话：138****1234',
-    optimized: '张三 | 📱 138****1234 | 🔗 GitHub',
-    reason: '添加GitHub链接展示开源贡献，使用emoji增强可读性'
-  },
-  {
-    section: '教育背景',
-    title: '补充核心课程成绩',
-    original: '2018-2022 某某大学 计算机科学与技术 本科',
-    optimized: '核心课程：数据结构与算法（92分）、Web开发技术（95分）',
-    reason: '量化展示学术能力，突出与岗位相关的课程表现'
-  },
-  {
-    section: '工作经历',
-    title: '量化工作成果',
-    original: '负责公司后台管理系统的开发和维护',
-    optimized: '主导开发企业级后台管理系统，服务5000+日活用户，系统可用性达99.9%',
-    reason: '使用具体数据量化成果，增加STAR原则描述'
-  },
-  {
-    section: '技能',
-    title: '技能分级展示',
-    original: 'HTML/CSS/JavaScript, Vue.js, React, Node.js',
-    optimized: '前端框架：Vue3 (精通) | React (熟练) | Next.js',
-    reason: '分类展示技能并标注熟练程度，便于HR快速评估'
+// 从后端加载原始简历内容
+onMounted(async () => {
+  try {
+    const response = await resumeApi.getDetail(resumeId)
+    const data = response.data
+    // 如果有原始内容字段，使用它；否则构造一个
+    originalContent.value = data.content?.raw_text || data.title || '简历内容加载中...'
+  } catch (error) {
+    ElMessage.error('加载简历内容失败')
   }
-])
+})
 
-const handleOptimize = () => {
+const handleOptimize = async () => {
   optimizing.value = true
-  optimizeProgress.value = 0
+  optimizeProgress.value = 10
 
-  const interval = setInterval(() => {
-    optimizeProgress.value += Math.random() * 15
-    if (optimizeProgress.value >= 100) {
-      optimizeProgress.value = 100
-      clearInterval(interval)
-      setTimeout(() => {
-        optimizing.value = false
-        showResult.value = true
-      }, 500)
-    }
-  }, 300)
+  try {
+    // 模拟进度更新
+    const progressInterval = setInterval(() => {
+      if (optimizeProgress.value < 90) {
+        optimizeProgress.value += Math.random() * 15
+      }
+    }, 300)
+
+    // 调用后端优化 API
+    const response = await resumeApi.optimize({
+      resume_id: resumeId,
+      target_position: targetPosition.value,
+      target_company: targetCompany.value,
+      requirements: requirements.value
+    })
+    const data = response.data
+
+    clearInterval(progressInterval)
+    optimizeProgress.value = 100
+
+    // 映射优化结果
+    optimizedContent.value = data.optimized_content || ''
+    changes.value = data.changes || []
+    scoreImprovement.value = data.score_improvement || 0
+
+    setTimeout(() => {
+      optimizing.value = false
+      showResult.value = true
+    }, 500)
+  } catch (error: any) {
+    clearInterval(undefined as any)
+    optimizing.value = false
+    optimizeProgress.value = 0
+    ElMessage.error(error.response?.data?.message || '优化失败，请稍后重试')
+  }
 }
 
 const handleDownload = () => {

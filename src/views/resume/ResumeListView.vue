@@ -113,10 +113,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { Plus, Calendar, DataAnalysis, Edit, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { resumeApi } from '@/api/resume'
 
 const router = useRouter()
 
@@ -129,40 +130,29 @@ interface Resume {
   status: 'pending' | 'analyzing' | 'analyzed' | 'error'
 }
 
-const resumes = ref<Resume[]>([
-  {
-    id: 1,
-    title: '前端工程师_张三',
-    fileType: 'pdf',
-    uploadDate: '2026-07-10',
-    aiScore: 85,
-    status: 'analyzed'
-  },
-  {
-    id: 2,
-    title: '全栈开发工程师',
-    fileType: 'docx',
-    uploadDate: '2026-07-08',
-    aiScore: 72,
-    status: 'analyzed'
-  },
-  {
-    id: 3,
-    title: '高级前端工程师_v3',
-    fileType: 'pdf',
-    uploadDate: '2026-07-05',
-    aiScore: null,
-    status: 'pending'
-  },
-  {
-    id: 4,
-    title: '实习生简历',
-    fileType: 'docx',
-    uploadDate: '2026-07-01',
-    aiScore: 62,
-    status: 'analyzed'
+const resumes = ref<Resume[]>([])
+const isLoading = ref(false)
+
+// 从后端 API 加载简历列表
+onMounted(async () => {
+  isLoading.value = true
+  try {
+    const response = await resumeApi.getList()
+    // 映射后端字段到前端字段
+    resumes.value = (response.data?.items || []).map((item: any) => ({
+      id: item.id,
+      title: item.title || '未命名简历',
+      fileType: item.file_type || 'pdf',
+      uploadDate: item.created_at?.split('T')[0] || '',
+      aiScore: item.score ?? null,
+      status: item.status || 'pending'
+    }))
+  } catch (error) {
+    ElMessage.error('加载简历列表失败')
+  } finally {
+    isLoading.value = false
   }
-])
+})
 
 const getFileTypeClass = (type: string) => {
   if (type === 'pdf') return 'bg-red-50 text-red-500'
@@ -226,10 +216,15 @@ const handleDelete = async (id: number) => {
       confirmButtonText: '删除',
       cancelButtonText: '取消'
     })
+    // 调用后端 API 删除
+    await resumeApi.delete(id)
     resumes.value = resumes.value.filter(r => r.id !== id)
     ElMessage.success('删除成功')
-  } catch {
-    // cancelled
+  } catch (error) {
+    // 用户取消或 API 错误
+    if (error !== 'cancel') {
+      ElMessage.error('删除失败，请稍后重试')
+    }
   }
 }
 </script>
