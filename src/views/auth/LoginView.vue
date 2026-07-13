@@ -106,6 +106,7 @@ import { useRouter } from 'vue-router'
 import { User, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
+import { authApi } from '@/api/auth'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -135,25 +136,28 @@ const handleLogin = async () => {
 
   loading.value = true
 
-  // Simulate API call
-  setTimeout(() => {
-    const token = 'mock_token_' + Date.now()
-    const user = {
+  try {
+    // 调用后端登录 API
+    const response = await authApi.login({
       username: form.username,
-      role: 'user',
-      avatar: ''
-    }
-    localStorage.setItem('token', token)
-    localStorage.setItem('user', JSON.stringify(user))
+      password: form.password
+    })
+
+    // 保存 token 和用户信息到 localStorage
+    localStorage.setItem('token', response.data.token)
+    localStorage.setItem('user', JSON.stringify(response.data.user))
 
     ElMessage.success({
       message: `欢迎回来，${form.username}！`,
       duration: 2000
     })
 
-    loading.value = false
     router.push('/')
-  }, 1500)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.message || '登录失败，请检查用户名和密码')
+  } finally {
+    loading.value = false
+  }
 }
 </script>
 
