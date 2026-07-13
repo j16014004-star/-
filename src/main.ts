@@ -13,7 +13,8 @@ if (import.meta.env.DEV) {
     import('./utils/request').then(({ default: request }) => {
       setupMock(request)
     })
-    import('./mock/auth').then(({ setupAuthMock }) => setupAuthMock())
+    // Auth mock disabled - using real backend API
+    // import('./mock/auth').then(({ setupAuthMock }) => setupAuthMock())
     import('./mock/resume').then(({ setupResumeMock }) => setupResumeMock())
     import('./mock/career').then(({ setupCareerMock }) => setupCareerMock())
     import('./mock/job').then(({ setupJobMock }) => setupJobMock())
