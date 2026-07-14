@@ -25,7 +25,11 @@ export interface UserInfo {
   email: string
   avatar?: string
   phone?: string
+  status?: string
+  email_verified?: boolean
+  phone_verified?: boolean
   created_at: string
+  last_login_at?: string
 }
 
 // ============ Resume ============
