@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { storage, TOKEN_KEY } from '@/utils/storage'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -128,7 +129,7 @@ const router = createRouter({
 
 // Navigation guard
 router.beforeEach((to, from, next) => {
-  const token = localStorage.getItem('token')
+  const token = storage.get<string>(TOKEN_KEY)
   const requiresAuth = to.matched.some(r => r.meta?.requiresAuth !== false)
   const isAuthPage = to.path === '/login' || to.path === '/register'
 

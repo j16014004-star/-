@@ -145,6 +145,8 @@ import { resumeApi } from '@/api/resume'
 import { interviewApi } from '@/api/interview'
 import { chatApi } from '@/api/chat'
 import { jobApi } from '@/api/job'
+import { storage, USER_KEY } from '@/utils/storage'
+import { storage, USER_KEY } from '@/utils/storage'
 
 const router = useRouter()
 
@@ -284,14 +286,9 @@ function formatTimeAgo(dateStr: string): string {
 
 onMounted(() => {
   // 加载用户名
-  const stored = localStorage.getItem('user')
+  const stored = storage.get<any>(USER_KEY)
   if (stored) {
-    try {
-      const user = JSON.parse(stored)
-      username.value = user.username || '用户'
-    } catch {
-      // ignore
-    }
+    username.value = stored.username || '用户'
   }
   // 加载仪表盘数据
   loadDashboardData()

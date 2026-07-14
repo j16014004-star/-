@@ -107,6 +107,7 @@ import { User, Lock } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { authApi } from '@/api/auth'
+import { storage, TOKEN_KEY, USER_KEY } from '@/utils/storage'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -144,12 +145,12 @@ const handleLogin = async () => {
     })
 
     // 保存 token 和用户信息到 localStorage
-    localStorage.setItem('token', response.data.access_token)
-    localStorage.setItem('refresh_token', response.data.refresh_token)
-    localStorage.setItem('token_type', response.data.token_type)
-    localStorage.setItem('expires_in', String(response.data.expires_in))
-    localStorage.setItem('token_expires_at', String(Date.now() + response.data.expires_in * 1000))
-    localStorage.setItem('user', JSON.stringify(response.data.user))
+    storage.set(TOKEN_KEY, response.data.access_token)
+    storage.set('refresh_token', response.data.refresh_token)
+    storage.set('token_type', response.data.token_type)
+    storage.set('expires_in', response.data.expires_in)
+    storage.set('token_expires_at', Date.now() + response.data.expires_in * 1000)
+    storage.set(USER_KEY, response.data.user)
 
     ElMessage.success({
       message: `欢迎回来，${form.username}！`,

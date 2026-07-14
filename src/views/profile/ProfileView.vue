@@ -248,6 +248,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Camera, Sunny, Moon, Monitor } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import { authApi } from '@/api/auth'
+import { storage, USER_KEY } from '@/utils/storage'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -333,14 +334,11 @@ function handleAvatarUpload(options: { file: File }) {
     const base64 = e.target?.result as string
     userInfo.avatar = base64
     appStore.setAvatar(base64)
-    // 同步到 user localStorage
-    const storedUser = localStorage.getItem('user')
+    // 同步到 user storage
+    const storedUser = storage.get<any>(USER_KEY)
     if (storedUser) {
-      try {
-        const user = JSON.parse(storedUser)
-        user.avatar = base64
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch { /* ignore */ }
+      storedUser.avatar = base64
+      storage.set(USER_KEY, storedUser)
     }
     ElMessage.success('头像上传成功')
   }
@@ -355,13 +353,10 @@ function removeAvatar() {
   }).then(() => {
     userInfo.avatar = ''
     appStore.setAvatar('')
-    const storedUser = localStorage.getItem('user')
+    const storedUser = storage.get<any>(USER_KEY)
     if (storedUser) {
-      try {
-        const user = JSON.parse(storedUser)
-        user.avatar = ''
-        localStorage.setItem('user', JSON.stringify(user))
-      } catch { /* ignore */ }
+      storedUser.avatar = ''
+      storage.set(USER_KEY, storedUser)
     }
     localStorage.removeItem('userAvatar')
     ElMessage.success('头像已移除')
@@ -395,16 +390,13 @@ onMounted(async () => {
     appStore.user.name = userInfo.username
     appStore.user.avatar = userInfo.avatar
   } catch (error) {
-    // 如果 API 失败，从 localStorage 加载
-    const storedUser = localStorage.getItem('user')
+    // 如果 API 失败，从 storage 加载
+    const storedUser = storage.get<any>(USER_KEY)
     if (storedUser) {
-      try {
-        const user = JSON.parse(storedUser)
-        userInfo.username = user.username || '用户'
-        userInfo.email = user.email || ''
-        userInfo.phone = user.phone || ''
-        userInfo.avatar = user.avatar || ''
-      } catch { /* ignore */ }
+      userInfo.username = storedUser.username || '用户'
+      userInfo.email = storedUser.email || ''
+      userInfo.phone = storedUser.phone || ''
+      userInfo.avatar = storedUser.avatar || ''
     }
   }
 })
@@ -427,15 +419,12 @@ async function saveProfile() {
 }
 
 function resetProfile() {
-  const storedUser = localStorage.getItem('user')
+  const storedUser = storage.get<any>(USER_KEY)
   if (storedUser) {
-    try {
-      const user = JSON.parse(storedUser)
-      userInfo.username = user.username || '用户'
-      userInfo.email = user.email || ''
-      userInfo.phone = user.phone || ''
-      userInfo.avatar = user.avatar || ''
-    } catch { /* ignore */ }
+    userInfo.username = storedUser.username || '用户'
+    userInfo.email = storedUser.email || ''
+    userInfo.phone = storedUser.phone || ''
+    userInfo.avatar = storedUser.avatar || ''
   }
 }
 
@@ -471,9 +460,9 @@ async function handleLogout() {
     await authApi.logout()
 
     // 清除本地存储
-    localStorage.removeItem('token')
-    localStorage.removeItem('refresh_token')
-    localStorage.removeItem('user')
+    storage.remove(TOKEN_KEY)
+    storage.remove('refresh_token')
+    storage.remove(USER_KEY)
     localStorage.removeItem('userAvatar')
     appStore.logout()
     ElMessage.success('已退出登录')
@@ -487,8 +476,8 @@ async function handleLogout() {
 }
 
 function handleDeleteAccount() {
-  localStorage.removeItem('token')
-  localStorage.removeItem('user')
+  storage.remove(TOKEN_KEY)
+  storage.remove(USER_KEY)
   localStorage.removeItem('userAvatar')
   ElMessage.error('账户已删除')
   showDeleteDialog.value = false

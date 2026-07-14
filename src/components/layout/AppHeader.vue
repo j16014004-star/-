@@ -3,6 +3,7 @@ import { computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { Expand, Fold, User, ArrowRight } from '@element-plus/icons-vue'
+import { storage, TOKEN_KEY, USER_KEY } from '@/utils/storage'
 
 const route = useRoute()
 const router = useRouter()
@@ -26,14 +27,11 @@ const userName = computed(() => appStore.user.name)
 const userAvatar = computed(() => appStore.user.avatar)
 
 onMounted(() => {
-  // 从 localStorage 加载用户信息
-  const storedUser = localStorage.getItem('user')
+  // 从 storage 加载用户信息
+  const storedUser = storage.get<any>(USER_KEY)
   if (storedUser) {
-    try {
-      const user = JSON.parse(storedUser)
-      if (user.username) appStore.user.name = user.username
-      if (user.avatar) appStore.user.avatar = user.avatar
-    } catch { /* ignore */ }
+    if (storedUser.username) appStore.user.name = storedUser.username
+    if (storedUser.avatar) appStore.user.avatar = storedUser.avatar
   }
   const storedAvatar = localStorage.getItem('userAvatar')
   if (storedAvatar) appStore.user.avatar = storedAvatar
@@ -44,8 +42,8 @@ function handleCommand(command: string) {
     router.push('/profile')
   } else if (command === 'logout') {
     appStore.logout()
-    localStorage.removeItem('token')
-    localStorage.removeItem('user')
+    storage.remove(TOKEN_KEY)
+    storage.remove(USER_KEY)
     localStorage.removeItem('userAvatar')
     router.push('/login')
   }
