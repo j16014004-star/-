@@ -1,5 +1,5 @@
 import request from '@/utils/request'
-import type { LoginRequest, RegisterRequest, LoginResponse } from './types/auth'
+import type { LoginRequest, RegisterRequest, LoginResponse, RefreshTokenResponse } from './types/auth'
 import type { ApiResponse, UserInfo } from '@/types'
 
 export const authApi = {
@@ -9,6 +9,12 @@ export const authApi = {
 
   register(data: RegisterRequest) {
     return request.post<ApiResponse<null>>('/auth/register', data)
+  },
+
+  refresh(refreshToken: string) {
+    return request.post<ApiResponse<RefreshTokenResponse>>('/auth/refresh', {
+      refresh_token: refreshToken
+    })
   },
 
   getUserInfo() {

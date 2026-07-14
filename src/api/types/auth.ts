@@ -24,3 +24,9 @@ export interface LoginResponse {
     status: string
   }
 }
+
+// 刷新 Token 响应
+export interface RefreshTokenResponse {
+  access_token: string
+  expires_in: number
+}
