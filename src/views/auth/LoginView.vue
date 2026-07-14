@@ -146,6 +146,9 @@ const handleLogin = async () => {
     // 保存 token 和用户信息到 localStorage
     localStorage.setItem('token', response.data.access_token)
     localStorage.setItem('refresh_token', response.data.refresh_token)
+    localStorage.setItem('token_type', response.data.token_type)
+    localStorage.setItem('expires_in', String(response.data.expires_in))
+    localStorage.setItem('token_expires_at', String(Date.now() + response.data.expires_in * 1000))
     localStorage.setItem('user', JSON.stringify(response.data.user))
 
     ElMessage.success({
@@ -155,7 +158,25 @@ const handleLogin = async () => {
 
     router.push('/')
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || '登录失败，请检查用户名和密码')
+    const status = error.response?.status
+    const message = error.response?.data?.message
+
+    switch (status) {
+      case 401:
+        ElMessage.error('用户名或密码错误')
+        break
+      case 403:
+        ElMessage.error('账号已被禁用，请联系管理员')
+        break
+      case 404:
+        ElMessage.error('用户不存在')
+        break
+      case 429:
+        ElMessage.error('请求过于频繁，请稍后再试')
+        break
+      default:
+        ElMessage.error(message || '登录失败，请检查网络连接')
+    }
   } finally {
     loading.value = false
   }

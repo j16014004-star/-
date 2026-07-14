@@ -20,7 +20,7 @@ export interface LoginResponse {
     username: string
     email: string
     avatar?: string
-    phone?: string
+    phone?: string | null
     status: string
   }
 }
