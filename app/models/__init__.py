@@ -1,0 +1,29 @@
+"""Import all ORM models so SQLAlchemy metadata can resolve foreign keys."""
+
+from app.models.user import LoginLog, RefreshToken, User, UserRole, VerificationCode
+from app.models.resume import Resume, ResumeChunk
+from app.models.ai import AITask, ResumeOptimizationVersion
+from app.models.job import (
+    Job,
+    JobApplication,
+    JobPlatformLoginSession,
+    JobRecommendResult,
+    JobRecommendTask,
+)
+
+__all__ = [
+    'AITask',
+    'ResumeOptimizationVersion',
+    "LoginLog",
+    "RefreshToken",
+    "User",
+    "UserRole",
+    "VerificationCode",
+    "Resume",
+    "ResumeChunk",
+    "Job",
+    "JobApplication",
+    "JobPlatformLoginSession",
+    "JobRecommendResult",
+    "JobRecommendTask",
+]

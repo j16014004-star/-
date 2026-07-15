@@ -1,0 +1,40 @@
+# Python/runtime
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Local secrets and machine config
+.env
+.env.*
+!.env.example
+
+# Runtime data
+logs/
+*.log
+uploads/
+storage_states/
+vector_store/
+knowledge_base/**/processed/
+
+# Personal/local documents and assistant memory
+rember/
+jianli/
+.agents/
+.claude/
+ai-career-agent/
+*.md
+alembic/README
+!knowledge_base/**/source/**/*.md
+
+# OS/editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
