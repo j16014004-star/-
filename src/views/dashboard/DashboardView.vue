@@ -146,7 +146,6 @@ import { interviewApi } from '@/api/interview'
 import { chatApi } from '@/api/chat'
 import { jobApi } from '@/api/job'
 import { storage, USER_KEY } from '@/utils/storage'
-import { storage, USER_KEY } from '@/utils/storage'
 
 const router = useRouter()
 

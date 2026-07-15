@@ -8,9 +8,10 @@
         <div class="absolute bottom-20 left-20 w-96 h-96 bg-emerald-300 rounded-full blur-3xl"></div>
       </div>
       <div class="relative z-10 text-center px-12">
-        <div class="text-6xl mb-6">&#x1F680;</div>
-        <h1 class="text-4xl font-bold text-white mb-4">开启你的职业之旅</h1>
-        <p class="text-xl text-emerald-200 mb-8">注册即享AI智能职业服务</p>
+        <img class="brand-hero-logo mx-auto mb-6" src="/hakimi-logo.png" alt="哈基米AI" />
+        <h1 class="text-4xl font-bold text-white mb-4">哈基米AI</h1>
+        <p class="text-xl text-emerald-200 mb-2">全自动找工作一站式自动化服务</p>
+        <p class="text-sm text-emerald-100 mb-8">做简历、找岗位、练面试、定规划，一套流程帮你跑起来</p>
         <div class="grid grid-cols-2 gap-4 max-w-md mx-auto">
           <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
             <div class="text-2xl mb-1">&#x1F4C4;</div>
@@ -36,8 +37,8 @@
     <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
       <div class="w-full max-w-md">
         <div class="text-center mb-8 lg:hidden">
-          <div class="text-4xl mb-2">&#x1F680;</div>
-          <h1 class="text-2xl font-bold text-gray-800">AI Career Agent</h1>
+          <img class="brand-mobile-logo mx-auto mb-3" src="/hakimi-logo.png" alt="哈基米AI" />
+          <h1 class="text-2xl font-bold text-gray-800">哈基米AI</h1>
           <p class="text-gray-500">创建您的账号</p>
         </div>
 
@@ -110,7 +111,7 @@
         </el-card>
 
         <p class="text-center text-gray-400 text-sm mt-8">
-          &copy; 2026 AI Career Agent. All rights reserved.
+          &copy; 2026 哈基米AI. All rights reserved.
         </p>
       </div>
     </div>
@@ -188,7 +189,7 @@ const handleRegister = async () => {
 
     router.push('/login')
   } catch (error: any) {
-    ElMessage.error(error.response?.data?.message || '注册失败，请稍后重试')
+    ElMessage.error(error.response?.data?.message || error.message || '注册失败，请稍后重试')
   } finally {
     loading.value = false
   }
@@ -202,6 +203,21 @@ const handleRegister = async () => {
 
 .register-left {
   min-height: 100vh;
+}
+
+.brand-hero-logo {
+  width: 104px;
+  height: 104px;
+  border-radius: 28px;
+  object-fit: cover;
+  box-shadow: 0 22px 44px rgba(15, 23, 42, 0.28);
+}
+
+.brand-mobile-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  object-fit: cover;
 }
 
 :deep(.el-card) {

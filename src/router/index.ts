@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
-import { storage, TOKEN_KEY } from '@/utils/storage'
+import { storage, TOKEN_KEY, USER_KEY } from '@/utils/storage'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -52,6 +52,13 @@ const routes: RouteRecordRaw[] = [
         props: true,
       },
       {
+        path: 'resume/optimized/:id',
+        name: 'resume-optimized-detail',
+        component: () => import('@/views/resume/SavedOptimizationDetailView.vue'),
+        meta: { title: '优化简历详情', icon: 'DocumentChecked' },
+        props: true,
+      },
+      {
         path: 'career',
         name: 'career',
         component: () => import('@/views/career/CareerPlanView.vue'),
@@ -67,7 +74,7 @@ const routes: RouteRecordRaw[] = [
         path: 'chat',
         name: 'chat',
         component: () => import('@/views/chat/ChatAssistantView.vue'),
-        meta: { title: 'AI助手', icon: 'ChatDotSquare' },
+        meta: { title: '哈基米AI', icon: 'ChatDotSquare' },
       },
       {
         path: 'agent',
@@ -129,7 +136,21 @@ const router = createRouter({
 
 // Navigation guard
 router.beforeEach((to, from, next) => {
-  const token = storage.get<string>(TOKEN_KEY)
+  let token = storage.get<string>(TOKEN_KEY)
+  const tokenExpiresAt = storage.get<number>('token_expires_at')
+  const tokenExpired = Boolean(token && tokenExpiresAt && Date.now() >= tokenExpiresAt)
+
+  if (tokenExpired) {
+    storage.remove(TOKEN_KEY)
+    storage.remove('refresh_token')
+    storage.remove('token_type')
+    storage.remove('expires_in')
+    storage.remove('token_expires_at')
+    storage.remove(USER_KEY)
+    localStorage.removeItem('userAvatar')
+    token = null
+  }
+
   const requiresAuth = to.matched.some(r => r.meta?.requiresAuth !== false)
   const isAuthPage = to.path === '/login' || to.path === '/register'
 

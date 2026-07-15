@@ -29,8 +29,13 @@ const onTokenRefreshed = (newToken: string) => {
 // Request interceptor - inject token
 request.interceptors.request.use(
   (config: InternalAxiosRequestConfig) => {
+    const isPublicAuthRequest = config.url?.includes('/auth/login') ||
+      config.url?.includes('/auth/register')
+    if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+      config.headers.delete('Content-Type')
+    }
     const token = storage.get<string>(TOKEN_KEY)
-    if (token) {
+    if (token && !isPublicAuthRequest) {
       config.headers.Authorization = `Bearer ${token}`
     }
     return config
@@ -42,6 +47,9 @@ request.interceptors.request.use(
 request.interceptors.response.use(
   (response: AxiosResponse) => {
     const { data } = response
+    if (response.config.responseType === 'blob') {
+      return response
+    }
     // Mock delay in development
     if (import.meta.env.DEV && response.config.url?.startsWith('/mock/')) {
       return data
@@ -59,6 +67,13 @@ request.interceptors.response.use(
     }
 
     const originalRequest = error.config
+    const isPublicAuthRequest = originalRequest?.url?.includes('/auth/login') ||
+      originalRequest?.url?.includes('/auth/register')
+
+    // 登录和注册失败应直接由对应页面提示，不触发刷新令牌或页面跳转。
+    if (isPublicAuthRequest) {
+      return Promise.reject(error)
+    }
 
     // 401 错误处理：尝试刷新 token
     if (error.response?.status === 401 && !originalRequest._retry) {
@@ -118,7 +133,7 @@ request.interceptors.response.use(
       }
     }
 
-    ElMessage.error(error.response?.data?.message || '网络错误')
+    ElMessage.error(error.response?.data?.detail || error.response?.data?.message || '网络错误')
     return Promise.reject(error)
   }
 )

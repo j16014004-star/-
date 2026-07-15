@@ -15,9 +15,14 @@ if (import.meta.env.DEV) {
     })
     // Auth mock disabled - using real backend API
     // import('./mock/auth').then(({ setupAuthMock }) => setupAuthMock())
-    import('./mock/resume').then(({ setupResumeMock }) => setupResumeMock())
-    import('./mock/career').then(({ setupCareerMock }) => setupCareerMock())
-    import('./mock/job').then(({ setupJobMock }) => setupJobMock())
+    // Resume mock disabled - using real backend API for upload/delete/download/list/detail
+    // import('./mock/resume').then(({ setupResumeMock }) => setupResumeMock())
+    // AI Mock 默认仅在开发环境开启；后端接口完成后设置 VITE_ENABLE_AI_MOCK=false。
+    if (import.meta.env.VITE_ENABLE_AI_MOCK !== 'false') {
+      import('./mock/ai').then(({ setupAIMock }) => setupAIMock())
+    }
+    // Job mock disabled - recommendations come from backend crawler data
+    // import('./mock/job').then(({ setupJobMock }) => setupJobMock())
     import('./mock/chat').then(({ setupChatMock }) => setupChatMock())
     import('./mock/agent').then(({ setupAgentMock }) => setupAgentMock())
     import('./mock/hr').then(({ setupHRMock }) => setupHRMock())

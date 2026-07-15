@@ -4,6 +4,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAppStore } from '@/stores/app'
 import { Expand, Fold, User, ArrowRight } from '@element-plus/icons-vue'
 import { storage, TOKEN_KEY, USER_KEY } from '@/utils/storage'
+import { authApi } from '@/api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -37,15 +38,25 @@ onMounted(() => {
   if (storedAvatar) appStore.user.avatar = storedAvatar
 })
 
-function handleCommand(command: string) {
+async function handleCommand(command: string) {
   if (command === 'profile') {
     router.push('/profile')
   } else if (command === 'logout') {
-    appStore.logout()
-    storage.remove(TOKEN_KEY)
-    storage.remove(USER_KEY)
-    localStorage.removeItem('userAvatar')
-    router.push('/login')
+    try {
+      await authApi.logout()
+    } catch {
+      // 服务端登出失败时，仍需清除本地登录凭据。
+    } finally {
+      appStore.logout()
+      storage.remove(TOKEN_KEY)
+      storage.remove('refresh_token')
+      storage.remove('token_type')
+      storage.remove('expires_in')
+      storage.remove('token_expires_at')
+      storage.remove(USER_KEY)
+      localStorage.removeItem('userAvatar')
+      router.replace('/login')
+    }
   }
 }
 </script>

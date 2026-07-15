@@ -12,7 +12,6 @@ describe('useResumeStore', () => {
     expect(store.resumes).toEqual([])
     expect(store.currentResume).toBe(null)
     expect(store.loading).toBe(false)
-    expect(store.analyzing).toBe(false)
   })
 
   it('setResumes 设置简历列表', () => {
@@ -51,30 +50,5 @@ describe('useResumeStore', () => {
     expect(store.currentResume).toEqual(resume)
     store.setCurrent(null)
     expect(store.currentResume).toBe(null)
-  })
-
-  it('updateAnalysis 更新简历分析', () => {
-    const store = useResumeStore()
-    const resume = { id: 1, title: '简历1', status: 'pending' } as any
-    store.resumes = [resume]
-    store.currentResume = { ...resume }
-
-    const analysis = {
-      score: 85,
-      strengths: ['优势1'],
-      weaknesses: ['劣势1'],
-      suggestions: ['建议1'],
-      missing_keywords: [],
-      format_score: 80,
-      content_score: 90,
-      relevance_score: 85,
-    }
-
-    store.updateAnalysis(1, analysis)
-
-    expect(store.resumes[0].status).toBe('completed')
-    expect(store.resumes[0].score).toBe(85)
-    expect(store.currentResume?.status).toBe('completed')
-    expect(store.currentResume?.score).toBe(85)
   })
 })

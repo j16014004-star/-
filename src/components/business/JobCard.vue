@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import type { Job } from '@/types'
 import ScoreRing from '@/components/business/ScoreRing.vue'
-import { Briefcase, MapPin, Money, Clock, Education } from '@element-plus/icons-vue'
+import { Briefcase, Location, Money, School, Timer } from '@element-plus/icons-vue'
 import { computed } from 'vue'
 
 const props = defineProps<{
@@ -75,15 +75,15 @@ const matchLevel = computed(() => {
             <span class="font-medium text-indigo-600">{{ salaryDisplay }}</span>
           </span>
           <span class="flex items-center gap-1">
-            <el-icon :size="12"><MapPin /></el-icon>
+            <el-icon :size="12"><Location /></el-icon>
             {{ job.city }}
           </span>
           <span v-if="job.experience_required" class="flex items-center gap-1">
-            <el-icon :size="12"><Clock /></el-icon>
+            <el-icon :size="12"><Timer /></el-icon>
             {{ job.experience_required }}
           </span>
           <span v-if="job.education_required" class="flex items-center gap-1">
-            <el-icon :size="12"><Education /></el-icon>
+            <el-icon :size="12"><School /></el-icon>
             {{ job.education_required }}
           </span>
         </div>

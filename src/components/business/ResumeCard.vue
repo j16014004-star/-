@@ -1,11 +1,9 @@
 <script setup lang="ts">
 import type { Resume } from '@/types'
 import StatusTag from '@/components/common/StatusTag.vue'
-import ScoreRing from '@/components/business/ScoreRing.vue'
 import {
   Document,
   View,
-  DataAnalysis,
   EditPen,
   Delete,
 } from '@element-plus/icons-vue'
@@ -20,7 +18,6 @@ const props = withDefaults(defineProps<{
 
 const emit = defineEmits<{
   view: [resume: Resume]
-  analyze: [resume: Resume]
   optimize: [resume: Resume]
   delete: [resume: Resume]
 }>()
@@ -83,27 +80,7 @@ const formattedDate = computed(() => {
           <span class="w-1 h-1 rounded-full bg-gray-300" />
           <span>上传于 {{ formattedDate }}</span>
         </div>
-        <!-- Skills preview -->
-        <div v-if="resume.analysis?.strengths" class="mt-2 flex flex-wrap gap-1">
-          <el-tag
-            v-for="skill in resume.analysis.strengths.slice(0, 3)"
-            :key="skill"
-            size="small"
-            effect="plain"
-            class="!bg-gray-50 !text-gray-600 !border-gray-200"
-          >
-            {{ skill }}
-          </el-tag>
-        </div>
       </div>
-
-      <!-- Score ring -->
-      <ScoreRing
-        v-if="resume.score !== undefined"
-        :score="resume.score"
-        :size="64"
-        :stroke-width="5"
-      />
     </div>
 
     <!-- Actions -->
@@ -119,15 +96,6 @@ const formattedDate = computed(() => {
       >
         <el-icon :size="14"><View /></el-icon>
         查看
-      </el-button>
-      <el-button
-        text
-        size="small"
-        @click="emit('analyze', resume)"
-        class="action-btn"
-      >
-        <el-icon :size="14"><DataAnalysis /></el-icon>
-        分析
       </el-button>
       <el-button
         text

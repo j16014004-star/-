@@ -8,25 +8,38 @@
         <div class="absolute bottom-20 right-20 w-96 h-96 bg-blue-300 rounded-full blur-3xl"></div>
       </div>
       <div class="relative z-10 text-center px-12">
-        <div class="text-6xl mb-6">&#x1F916;</div>
-        <h1 class="text-4xl font-bold text-white mb-4">AI Career Agent</h1>
-        <p class="text-xl text-blue-200 mb-8">智能职业发展助手</p>
-        <div class="space-y-4 text-left text-blue-100 max-w-md mx-auto">
-          <div class="flex items-center gap-3">
-            <el-tag class="flex-shrink-0" color="rgba(255,255,255,0.2)">AI</el-tag>
-            <span>智能简历分析与优化</span>
+        <div class="brand-royal-stage mx-auto mb-8" aria-label="哈基米AI 网站标志">
+          <div class="royal-glow"></div>
+          <div class="crown">♛</div>
+          <div class="cat cat-left">ฅ</div>
+          <div class="cat cat-right">ฅ</div>
+          <div class="cat cat-bottom-left">🐱</div>
+          <div class="cat cat-bottom-right">🐱</div>
+          <img class="brand-hero-logo" src="/hakimi-logo.png" alt="哈基米AI" />
+        </div>
+        <h1 class="text-5xl font-black text-white mb-5 tracking-wide">哈基米AI</h1>
+        <p class="text-2xl font-bold text-blue-100 mb-3">全自动找工作一站式自动化服务</p>
+        <p class="text-base text-blue-100 mb-9">做简历、投岗位、约面试、聊 HR、定职业规划，AI 全程帮你跑</p>
+        <div class="feature-list space-y-4 text-left text-blue-50 max-w-lg mx-auto">
+          <div class="feature-item">
+            <span class="feature-badge">简历</span>
+            <span>AI 做简历、优化简历，突出你的岗位竞争力</span>
           </div>
-          <div class="flex items-center gap-3">
-            <el-tag class="flex-shrink-0" color="rgba(255,255,255,0.2)">&#x1F3AF;</el-tag>
-            <span>精准岗位匹配推荐</span>
+          <div class="feature-item">
+            <span class="feature-badge">投递</span>
+            <span>AI 帮你筛岗位、匹配岗位，并自动投递简历</span>
           </div>
-          <div class="flex items-center gap-3">
-            <el-tag class="flex-shrink-0" color="rgba(255,255,255,0.2)">&#x1F4AC;</el-tag>
-            <span>AI模拟面试训练</span>
+          <div class="feature-item">
+            <span class="feature-badge">面试</span>
+            <span>AI 帮你约面试、做面试训练，提前准备高频问题</span>
           </div>
-          <div class="flex items-center gap-3">
-            <el-tag class="flex-shrink-0" color="rgba(255,255,255,0.2)">&#x1F4CB;</el-tag>
-            <span>个性化职业规划</span>
+          <div class="feature-item">
+            <span class="feature-badge">HR</span>
+            <span>AI 辅助和 HR 沟通，跟进进度、表达意向、争取机会</span>
+          </div>
+          <div class="feature-item">
+            <span class="feature-badge">规划</span>
+            <span>AI 定职业规划，帮你找到长期发展路线</span>
           </div>
         </div>
       </div>
@@ -36,9 +49,9 @@
     <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
       <div class="w-full max-w-md">
         <div class="text-center mb-8 lg:hidden">
-          <div class="text-4xl mb-2">&#x1F916;</div>
-          <h1 class="text-2xl font-bold text-gray-800">AI Career Agent</h1>
-          <p class="text-gray-500">智能职业发展助手</p>
+          <img class="brand-mobile-logo mx-auto mb-3" src="/hakimi-logo.png" alt="哈基米AI" />
+          <h1 class="text-2xl font-bold text-gray-800">哈基米AI</h1>
+          <p class="text-gray-500">全自动找工作一站式自动化服务</p>
         </div>
 
         <el-card class="w-full shadow-xl border-0" body-style="padding: 40px">
@@ -93,7 +106,7 @@
         </el-card>
 
         <p class="text-center text-gray-400 text-sm mt-8">
-          &copy; 2026 AI Career Agent. All rights reserved.
+          &copy; 2026 哈基米AI. All rights reserved.
         </p>
       </div>
     </div>
@@ -160,7 +173,7 @@ const handleLogin = async () => {
     router.push('/')
   } catch (error: any) {
     const status = error.response?.status
-    const message = error.response?.data?.message
+    const message = error.response?.data?.message || error.message
 
     switch (status) {
       case 401:
@@ -191,6 +204,148 @@ const handleLogin = async () => {
 
 .login-left {
   min-height: 100vh;
+}
+
+.brand-royal-stage {
+  position: relative;
+  width: 278px;
+  height: 218px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.royal-glow {
+  position: absolute;
+  width: 220px;
+  height: 220px;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle, rgba(255, 244, 179, 0.95) 0%, rgba(250, 204, 21, 0.36) 34%, rgba(129, 140, 248, 0) 70%);
+  filter: blur(2px);
+  animation: royalPulse 3s ease-in-out infinite;
+}
+
+.brand-hero-logo {
+  position: relative;
+  z-index: 3;
+  width: 176px;
+  height: 176px;
+  border: 4px solid rgba(255, 255, 255, 0.72);
+  border-radius: 42px;
+  object-fit: cover;
+  box-shadow:
+    0 30px 70px rgba(15, 23, 42, 0.42),
+    0 0 0 10px rgba(255, 255, 255, 0.12),
+    0 0 46px rgba(250, 204, 21, 0.34);
+}
+
+.crown {
+  position: absolute;
+  top: -18px;
+  z-index: 4;
+  color: #fde68a;
+  font-size: 64px;
+  line-height: 1;
+  text-shadow:
+    0 8px 18px rgba(15, 23, 42, 0.34),
+    0 0 18px rgba(253, 230, 138, 0.65);
+}
+
+.cat {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 18px;
+  color: #fff7ed;
+  font-size: 34px;
+  background: rgba(255, 255, 255, 0.12);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.18);
+  backdrop-filter: blur(10px);
+}
+
+.cat-left {
+  left: 0;
+  top: 82px;
+  transform: rotate(18deg);
+}
+
+.cat-right {
+  right: 0;
+  top: 82px;
+  transform: scaleX(-1) rotate(18deg);
+}
+
+.cat-bottom-left {
+  left: 22px;
+  bottom: 2px;
+  z-index: 5;
+  width: 66px;
+  height: 66px;
+  font-size: 40px;
+  transform: rotate(-10deg);
+}
+
+.cat-bottom-right {
+  right: 22px;
+  bottom: 2px;
+  z-index: 5;
+  width: 66px;
+  height: 66px;
+  font-size: 40px;
+  transform: rotate(10deg);
+}
+
+@keyframes royalPulse {
+  0%, 100% {
+    transform: scale(0.96);
+    opacity: 0.78;
+  }
+  50% {
+    transform: scale(1.05);
+    opacity: 1;
+  }
+}
+
+.brand-mobile-logo {
+  width: 72px;
+  height: 72px;
+  border-radius: 20px;
+  object-fit: cover;
+}
+
+.feature-list {
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.feature-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(8px);
+}
+
+.feature-badge {
+  display: inline-flex;
+  min-width: 46px;
+  height: 30px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.14);
 }
 
 :deep(.el-card) {

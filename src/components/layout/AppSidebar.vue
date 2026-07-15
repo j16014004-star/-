@@ -39,7 +39,7 @@ const menuItems = [
   },
   { index: '/career', title: '职业规划', icon: TrendCharts },
   { index: '/jobs', title: '岗位推荐', icon: Briefcase },
-  { index: '/chat', title: 'AI助手', icon: ChatDotSquare },
+  { index: '/chat', title: '哈基米AI', icon: ChatDotSquare },
   { index: '/interview', title: 'AI面试', icon: VideoCamera },
   { index: '/agent', title: 'Agent任务中心', icon: Monitor },
   { index: '/hr', title: 'HR助手', icon: Message },
@@ -64,30 +64,16 @@ const menuItems = [
     >
       <div
         v-if="!isCollapsed"
-        class="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 font-bold text-lg"
+        class="flex items-center gap-3 text-indigo-600 dark:text-indigo-400"
       >
-        <svg class="w-8 h-8" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="8" fill="#4f46e5" />
-          <path
-            d="M16 6C10.477 6 6 10.477 6 16s4.477 10 10 10 10-4.477 10-10S21.523 6 16 6zm0 18c-4.411 0-8-3.589-8-8s3.589-8 8-8 8 3.589 8 8-3.589 8-8 8z"
-            fill="white"
-          />
-          <path
-            d="M16 10c-3.309 0-6 2.691-6 6s2.691 6 6 6 6-2.691 6-6-2.691-6-6-6zm0 10c-2.206 0-4-1.794-4-4s1.794-4 4-4 4 1.794 4 4-1.794 4-4 4z"
-            fill="white"
-          />
-          <path d="M18 15h-3v2h3v-2z" fill="#4f46e5" />
-        </svg>
-        <span>AI Career</span>
+        <img class="brand-logo" src="/hakimi-logo.png" alt="哈基米AI" />
+        <div class="min-w-0">
+          <div class="truncate text-lg font-bold leading-5 text-gray-800">哈基米AI</div>
+          <div class="truncate text-xs font-medium text-gray-400">全自动找工作助手</div>
+        </div>
       </div>
       <div v-else class="flex items-center justify-center">
-        <svg class="w-8 h-8" viewBox="0 0 32 32" fill="none">
-          <rect width="32" height="32" rx="8" fill="#4f46e5" />
-          <path
-            d="M16 6C10.477 6 6 10.477 6 16s4.477 10 10 10 10-4.477 10-10S21.523 6 16 6z"
-            fill="white"
-          />
-        </svg>
+        <img class="brand-logo collapsed" src="/hakimi-logo.png" alt="哈基米AI" />
       </div>
     </div>
 
@@ -153,6 +139,20 @@ const menuItems = [
 
 .sidebar-header {
   transition: all 0.3s ease;
+}
+
+.brand-logo {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  object-fit: cover;
+  box-shadow: 0 8px 18px rgba(79, 70, 229, 0.18);
+}
+
+.brand-logo.collapsed {
+  width: 34px;
+  height: 34px;
 }
 
 /* Override Element Plus menu styles for collapsible */

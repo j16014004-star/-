@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import type { ChatMessage } from '@/types'
 import StreamingText from '@/components/business/StreamingText.vue'
-import { User, ChatDotSquare } from '@element-plus/icons-vue'
+import { User } from '@element-plus/icons-vue'
 
 const props = withDefaults(defineProps<{
   message: ChatMessage
@@ -59,10 +59,10 @@ const formattedTime = computed(() => {
       <el-avatar
         v-else
         :size="36"
-        class="!bg-indigo-100 !text-indigo-600"
+        class="!bg-indigo-100"
         shape="circle"
       >
-        <el-icon :size="20"><ChatDotSquare /></el-icon>
+        <img class="assistant-avatar" src="/hakimi-logo.png" alt="哈基米AI" />
       </el-avatar>
     </div>
 
@@ -73,7 +73,7 @@ const formattedTime = computed(() => {
         class="text-xs text-gray-400 mb-1"
         :class="isUser ? 'text-right' : 'text-left'"
       >
-        {{ isUser ? '你' : 'AI助手' }}
+        {{ isUser ? '你' : '哈基米AI' }}
         <span class="ml-2">{{ formattedTime }}</span>
       </div>
 
@@ -108,6 +108,12 @@ const formattedTime = computed(() => {
 
 .chat-avatar {
   transition: transform 0.15s ease;
+}
+
+.assistant-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 @keyframes fadeInUp {

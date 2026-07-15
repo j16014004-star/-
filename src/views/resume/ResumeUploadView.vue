@@ -106,8 +106,8 @@
             <div class="flex gap-3">
               <div class="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-500 flex-shrink-0">3</div>
               <div>
-                <div class="font-medium text-gray-700 text-sm">AI分析</div>
-                <div class="text-gray-400 text-xs mt-0.5">上传后自动进行AI智能分析</div>
+                <div class="font-medium text-gray-700 text-sm">AI优化</div>
+                <div class="text-gray-400 text-xs mt-0.5">解析完成后，可在简历详情中启动AI优化</div>
               </div>
             </div>
             <div class="flex gap-3">
@@ -149,12 +149,32 @@ const selectedFile = ref<File | null>(null)
 const uploading = ref(false)
 const uploadProgress = ref(0)
 
+const validateFile = (file: File) => {
+  const isAllowedType = ['.pdf', '.doc', '.docx'].some((extension) =>
+    file.name.toLowerCase().endsWith(extension)
+  )
+  if (!isAllowedType) {
+    ElMessage.error('仅支持 PDF、DOC 或 DOCX 格式的简历文件')
+    return false
+  }
+
+  if (file.size > 10 * 1024 * 1024) {
+    ElMessage.error('简历文件不能超过 10MB')
+    return false
+  }
+
+  return true
+}
+
 const handleFileChange = (uploadFile: UploadFile, _uploadFiles: UploadFiles) => {
-  if (uploadFile.raw) {
+  if (uploadFile.raw && validateFile(uploadFile.raw)) {
     selectedFile.value = uploadFile.raw
     if (!title.value) {
       title.value = uploadFile.name.replace(/\.[^/.]+$/, '')
     }
+  } else {
+    selectedFile.value = null
+    uploadRef.value?.clearFiles()
   }
 }
 
@@ -176,26 +196,15 @@ const handleUpload = async () => {
     return
   }
 
-  if (!title.value.trim()) {
-    ElMessage.warning('请输入简历标题')
-    return
-  }
-
   uploading.value = true
-  uploadProgress.value = 10
+  uploadProgress.value = 0
 
   try {
-    // 模拟进度更新
-    const progressInterval = setInterval(() => {
-      if (uploadProgress.value < 90) {
-        uploadProgress.value += Math.floor(Math.random() * 15) + 5
-      }
-    }, 300)
-
     // 调用后端 API 上传简历
-    const response = await resumeApi.upload(selectedFile.value, title.value)
+    const response = await resumeApi.upload(selectedFile.value, title.value, (percentage) => {
+      uploadProgress.value = Math.max(uploadProgress.value, percentage)
+    })
 
-    clearInterval(progressInterval)
     uploadProgress.value = 100
 
     setTimeout(() => {
@@ -205,15 +214,21 @@ const handleUpload = async () => {
         duration: 2000
       })
 
-      const newId = response.data?.id || Date.now()
+      const newId = response.data?.id
+      if (!newId) {
+        ElMessage.error('上传成功，但后端未返回简历 ID，请前往“我的简历”查看')
+        router.push('/resume')
+        return
+      }
       setTimeout(() => {
         router.push(`/resume/detail/${newId}`)
       }, 500)
     }, 500)
-  } catch (error: any) {
+  } catch (error: unknown) {
     uploading.value = false
     uploadProgress.value = 0
-    ElMessage.error(error.response?.data?.message || '上传失败，请稍后重试')
+    const message = error instanceof Error ? error.message : '上传失败，请稍后重试'
+    ElMessage.error(message)
   }
 }
 </script>

@@ -56,10 +56,14 @@ export function setupMock(axiosInstance: AxiosInstance) {
       // Merge URL params, query params, and body data
       const queryParams = config.params || {}
       let bodyData: any
-      try {
-        bodyData = config.data ? JSON.parse(config.data) : {}
-      } catch {
-        bodyData = config.data || {}
+      if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+        bodyData = Object.fromEntries(config.data.entries())
+      } else {
+        try {
+          bodyData = config.data ? JSON.parse(config.data) : {}
+        } catch {
+          bodyData = config.data || {}
+        }
       }
       const mergedParams = { ...queryParams, ...bodyData, ...params }
 

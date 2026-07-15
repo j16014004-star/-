@@ -40,14 +40,12 @@
     <div class="flex-1 flex flex-col min-w-0 bg-gray-50">
       <!-- Header -->
       <div class="px-6 py-3 bg-white border-b flex items-center gap-3">
-        <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-          <span class="text-lg">&#x1F916;</span>
-        </div>
+        <img class="assistant-logo" src="/hakimi-logo.png" alt="哈基米AI" />
         <div>
-          <div class="font-medium text-gray-800">AI求职助手</div>
+          <div class="font-medium text-gray-800">哈基米AI</div>
           <div class="text-xs text-green-500 flex items-center gap-1">
             <span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
-            在线
+            全自动求职助手在线
           </div>
         </div>
       </div>
@@ -56,9 +54,9 @@
       <div ref="messagesContainer" class="flex-1 overflow-y-auto p-6 space-y-6">
         <!-- Welcome -->
         <div v-if="messages.length === 0" class="text-center py-12">
-          <div class="text-6xl mb-4">&#x1F916;</div>
-          <h3 class="text-xl font-semibold text-gray-700 mb-2">你好，我是AI求职助手</h3>
-          <p class="text-gray-500 mb-6">我可以帮你分析简历、准备面试、解答求职问题</p>
+          <img class="welcome-logo mx-auto mb-4" src="/hakimi-logo.png" alt="哈基米AI" />
+          <h3 class="text-xl font-semibold text-gray-700 mb-2">你好，我是哈基米AI</h3>
+          <p class="text-gray-500 mb-6">找工作、做简历、定职业规划，AI 全程帮你做</p>
           <div class="grid grid-cols-1 md:grid-cols-2 gap-3 max-w-lg mx-auto">
             <div
               v-for="suggestion in suggestions"
@@ -76,10 +74,8 @@
           <div class="max-w-3xl" :class="msg.role === 'user' ? 'order-2' : 'order-1'">
             <!-- Avatar -->
             <div v-if="msg.role === 'assistant'" class="flex items-center gap-3 mb-2">
-              <div class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                <span class="text-sm">&#x1F916;</span>
-              </div>
-              <span class="text-xs text-gray-400">AI助手</span>
+              <img class="message-logo" src="/hakimi-logo.png" alt="哈基米AI" />
+              <span class="text-xs text-gray-400">哈基米AI</span>
             </div>
             <!-- Bubble -->
             <div
@@ -100,10 +96,8 @@
         <div v-if="isStreaming" class="flex justify-start">
           <div class="max-w-3xl">
             <div class="flex items-center gap-3 mb-2">
-              <div class="w-7 h-7 rounded-full bg-indigo-100 flex items-center justify-center flex-shrink-0">
-                <span class="text-sm">&#x1F916;</span>
-              </div>
-              <span class="text-xs text-gray-400">AI助手</span>
+              <img class="message-logo" src="/hakimi-logo.png" alt="哈基米AI" />
+              <span class="text-xs text-gray-400">哈基米AI</span>
             </div>
             <div class="px-4 py-3 rounded-2xl bg-white text-gray-700 shadow-sm rounded-bl-sm border border-gray-100">
               <span>{{ streamingText }}</span>
@@ -352,6 +346,31 @@ onMounted(() => {
 .session-item:hover {
   background-color: #f9fafb;
 }
+
+.assistant-logo {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: 12px;
+  object-fit: cover;
+}
+
+.welcome-logo {
+  width: 88px;
+  height: 88px;
+  border-radius: 24px;
+  object-fit: cover;
+  box-shadow: 0 16px 32px rgba(79, 70, 229, 0.18);
+}
+
+.message-logo {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 9px;
+  object-fit: cover;
+}
+
 :deep(.el-textarea__inner) {
   border-radius: 12px;
   border: 1px solid #e5e7eb;

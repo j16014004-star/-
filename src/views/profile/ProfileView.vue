@@ -248,7 +248,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Camera, Sunny, Moon, Monitor } from '@element-plus/icons-vue'
 import { useAppStore } from '@/stores/app'
 import { authApi } from '@/api/auth'
-import { storage, USER_KEY } from '@/utils/storage'
+import { storage, TOKEN_KEY, USER_KEY } from '@/utils/storage'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -457,16 +457,23 @@ async function handleLogout() {
     })
 
     // 调用后端登出 API
-    await authApi.logout()
+    try {
+      await authApi.logout()
+    } catch {
+      ElMessage.warning('服务端登出失败，已清除本地登录状态')
+    }
 
     // 清除本地存储
     storage.remove(TOKEN_KEY)
     storage.remove('refresh_token')
+    storage.remove('token_type')
+    storage.remove('expires_in')
+    storage.remove('token_expires_at')
     storage.remove(USER_KEY)
     localStorage.removeItem('userAvatar')
     appStore.logout()
     ElMessage.success('已退出登录')
-    router.push('/login')
+    router.replace('/login')
   } catch (error) {
     // 用户取消或 API 错误
     if (error !== 'cancel') {

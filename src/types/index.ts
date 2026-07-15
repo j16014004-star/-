@@ -1,4 +1,4 @@
-// ============ API Response Wrapper ============
+﻿// ============ API Response Wrapper ============
 export interface ApiResponse<T = any> {
   code: number
   message: string
@@ -36,31 +36,81 @@ export interface UserInfo {
 export interface Resume {
   id: number
   title: string
-  file_type: 'pdf' | 'word' | 'text'
+  file_type: 'pdf' | 'doc' | 'docx'
   file_url?: string
   file_size?: number
-  score?: number
-  status: 'pending' | 'analyzing' | 'completed' | 'failed'
-  analysis?: ResumeAnalysis
+  score?: number | null
+  status: 'pending' | 'processing' | 'analyzing' | 'completed' | 'failed'
   created_at: string
   updated_at: string
+  extracted_text?: string
+  chunks?: ResumeTextChunk[]
+  structured_data?: ResumeContent
+  content?: ResumeContent
 }
 
-export interface ResumeAnalysis {
-  score: number
-  strengths: string[]
-  weaknesses: string[]
-  suggestions: string[]
-  missing_keywords: string[]
-  format_score: number
-  content_score: number
-  relevance_score: number
+export interface ResumeTextChunk {
+  id?: number
+  index?: number
+  chunk_index?: number
+  text?: string
+  content?: string
+  char_count?: number
+  created_at?: string
+  metadata?: Record<string, string | number | boolean | null>
+}
+
+export interface ResumeContent {
+  name?: string
+  phone?: string
+  email?: string
+  experience?: string
+  education?: string
+  city?: string
+  education_list?: ResumeEducation[]
+  work_list?: ResumeWorkExperience[]
+  skills?: string[]
+  raw_text?: string
+}
+
+export interface ResumeEducation {
+  school: string
+  major?: string
+  degree?: string
+  period?: string
+}
+
+export interface ResumeWorkExperience {
+  company: string
+  position?: string
+  description?: string
+  period?: string
 }
 
 export interface ResumeOptimizeResult {
-  original: string
-  optimized: string
-  changes: OptimizeChange[]
+  id?: number
+  resume_id?: number
+  title?: string
+  saved_at?: string | null
+  is_saved?: boolean
+  optimization_summary?: string
+  original?: string
+  optimized?: string
+  optimized_content?: string
+  score_improvement?: number | null
+  changes?: OptimizeChange[]
+  change_items: OptimizeChange[]
+  confirmation_questions: string[]
+  confirmation_actions?: Array<{
+    type: 'ai' | 'manual' | 'dismiss'
+    title: string
+    questions: string[]
+    added_content?: string
+    summary?: string
+    feedback?: string
+    created_at: string
+  }>
+  created_at?: string
 }
 
 export interface OptimizeChange {
@@ -68,6 +118,8 @@ export interface OptimizeChange {
   original: string
   optimized: string
   reason: string
+  evidence?: string
+  requires_confirmation?: boolean
 }
 
 // ============ Career ============
@@ -102,7 +154,11 @@ export interface Job {
   match_score: number
   match_reasons: string[]
   source?: string
+  source_name?: string
+  source_url?: string
   url?: string
+  is_active?: boolean
+  crawl_time?: string
   created_at: string
 }
 
@@ -229,3 +285,5 @@ export interface ActivityItem {
   content: string
   time: string
 }
+
+

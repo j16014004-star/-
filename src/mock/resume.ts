@@ -140,6 +140,19 @@ export function setupResumeMock() {
       },
       created_at: '2026-06-28T10:30:00.000Z',
       updated_at: '2026-07-10T14:20:00.000Z',
+      extracted_text: '张三\n前端工程师\n\n具备 Vue 3、TypeScript 和 Vite 项目开发经验。\n负责企业管理系统的前端开发与性能优化。',
+      chunks: [
+        {
+          index: 1,
+          text: '张三\n前端工程师\n具备 Vue 3、TypeScript 和 Vite 项目开发经验。',
+          metadata: { page: 1 },
+        },
+        {
+          index: 2,
+          text: '负责企业管理系统的前端开发与性能优化，与后端协作完成接口联调。',
+          metadata: { page: 1 },
+        },
+      ],
     }
   })
 
@@ -151,11 +164,18 @@ export function setupResumeMock() {
       file_type: 'pdf',
       file_url: '/mock/resumes/new_resume.pdf',
       file_size: 150000,
-      score: undefined,
+      score: null,
       status: 'pending',
-      analysis: undefined,
+      analysis: null,
       created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
+    }
+  })
+
+  // Download resume
+  registerMock('get', '/resumes/:id/download', (params: any) => {
+    return {
+      filename: `resume_${params.id}.pdf`,
     }
   })
 
@@ -183,7 +203,7 @@ export function setupResumeMock() {
   })
 
   // Optimize resume
-  registerMock('post', '/resumes/:id/optimize', (params: any) => {
+  registerMock('post', '/resumes/:id/optimize', () => {
     return {
       original: '负责公司前端项目的开发与维护，使用Vue.js框架进行页面开发，与后端配合完成接口联调。',
       optimized: '主导公司核心前端项目的架构设计与开发，基于Vue3 + TypeScript技术栈实现模块化开发，通过自定义Hook封装复用逻辑使代码复用率提升40%；优化Webpack构建配置，将打包体积缩减35%，加载速度提升50%。',
