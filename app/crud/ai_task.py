@@ -71,6 +71,25 @@ async def count_started_provider_calls(db: AsyncSession, *, exclude_task_id: str
     return int(result.scalar() or 0)
 
 
+async def count_total_provider_tokens(db: AsyncSession, *, exclude_task_id: str | None = None) -> int:
+    query = select(AITask.token_usage).where(
+        AITask.task_type == 'resume_optimization',
+        AITask.token_usage.is_not(None),
+    )
+    if exclude_task_id is not None:
+        query = query.where(AITask.id != exclude_task_id)
+    result = await db.execute(query)
+    total = 0
+    for usage in result.scalars().all():
+        if not isinstance(usage, dict):
+            continue
+        try:
+            total += int(usage.get('total_tokens') or 0)
+        except (TypeError, ValueError):
+            continue
+    return total
+
+
 async def update_ai_task(db: AsyncSession, task_id: str, **values) -> AITask | None:
     task = await get_ai_task(db, task_id)
     if task is None:

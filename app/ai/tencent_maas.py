@@ -34,7 +34,14 @@ class TencentMaaSModelGateway:
             'Content-Type': 'application/json',
         }
 
-    async def generate_json(self, *, system_prompt: str, user_prompt: str) -> TextGenerationResult:
+    async def generate_json(
+        self,
+        *,
+        system_prompt: str,
+        user_prompt: str,
+        max_tokens: int | None = None,
+    ) -> TextGenerationResult:
+        output_tokens = max(1, min(max_tokens or settings.AI_MAX_OUTPUT_TOKENS, settings.AI_MAX_OUTPUT_TOKENS))
         payload = {
             'model': settings.RESUME_OPTIMIZATION_MODEL,
             'messages': [
@@ -42,18 +49,22 @@ class TencentMaaSModelGateway:
                 {'role': 'user', 'content': user_prompt},
             ],
             'temperature': settings.AI_TEMPERATURE,
-            'max_tokens': settings.AI_MAX_OUTPUT_TOKENS,
+            'max_tokens': output_tokens,
             'stream': False,
             'enable_thinking': settings.AI_THINKING_ENABLED,
             'response_format': {'type': 'json_object'},
         }
         data = await self._post_json('/chat/completions', payload)
         try:
-            content = data['choices'][0]['message']['content']
+            choice = data['choices'][0]
+            content = choice['message']['content']
         except (KeyError, IndexError, TypeError) as exc:
             raise TencentMaaSError('腾讯云模型返回结构不完整') from exc
         if not isinstance(content, str) or not content.strip():
             raise TencentMaaSError('腾讯云模型返回了空内容')
+        finish_reason = choice.get('finish_reason')
+        if finish_reason in {'length', 'max_tokens'}:
+            raise TencentMaaSError('腾讯云模型输出过长被截断，请减少简历内容或提高 AI_MAX_OUTPUT_TOKENS')
         raw_usage = data.get('usage') or {}
         usage = {
             'prompt_tokens': int(raw_usage.get('prompt_tokens') or 0),
@@ -118,4 +129,3 @@ class TencentMaaSModelGateway:
                 if attempt + 1 < attempts:
                     await asyncio.sleep(min(2 ** attempt, 4))
         raise TencentMaaSError('腾讯云模型网络请求失败') from last_error
-

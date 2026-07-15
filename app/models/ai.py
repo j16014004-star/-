@@ -76,7 +76,11 @@ class ResumeOptimizationVersion(Base):
     optimized_content: Mapped[str] = mapped_column(LONG_TEXT, nullable=False)
     change_items: Mapped[list[dict]] = mapped_column(JSON, nullable=False)
     confirmation_questions: Mapped[list[str]] = mapped_column(JSON, nullable=False)
+    confirmation_actions: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     score_improvement: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    title: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    is_saved: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, index=True)
+    saved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     knowledge_base_version: Mapped[str | None] = mapped_column(String(100), nullable=True)
     retrieved_chunk_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     model_name: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -84,4 +88,3 @@ class ResumeOptimizationVersion(Base):
     prompt_version: Mapped[str] = mapped_column(String(50), nullable=False)
     resume_content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=utc_now)
-

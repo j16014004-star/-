@@ -558,3 +558,189 @@ def _parse_skills(lines: list[str], full_text: str) -> list[str]:
 
     # 去重保序
     return list(dict.fromkeys(all_skills))
+
+
+def normalize_structured_data_for_frontend(data: dict[str, Any] | None) -> dict[str, Any]:
+    """Return parser output with frontend-compatible resume detail aliases."""
+    source = data if isinstance(data, dict) else {}
+    normalized: dict[str, Any] = dict(source)
+    basic = source.get("basic_info") if isinstance(source.get("basic_info"), dict) else {}
+
+    name = _first_text(source.get("name"), source.get("full_name"), basic.get("name"))
+    phone = _first_text(source.get("phone"), source.get("phone_number"), source.get("mobile"), basic.get("phone"))
+    email = _first_text(source.get("email"), basic.get("email"))
+    city = _first_text(
+        source.get("city"),
+        source.get("current_city"),
+        source.get("expected_city"),
+        source.get("location"),
+        basic.get("location"),
+    )
+
+    education_list = [_normalize_education_item(item) for item in _first_list(
+        source.get("education_list"),
+        source.get("educationList"),
+        source.get("educations"),
+        source.get("education_background"),
+        source.get("education"),
+    )]
+    work_list = [_normalize_work_item(item) for item in _first_list(
+        source.get("work_list"),
+        source.get("workList"),
+        source.get("work_experiences"),
+        source.get("experiences"),
+        source.get("work_experience"),
+    )]
+    skills = [str(item).strip() for item in _first_list(
+        source.get("skills"),
+        source.get("skill_tags"),
+        source.get("skillTags"),
+    ) if str(item).strip()]
+
+    normalized.update({
+        "name": name,
+        "full_name": name,
+        "phone": phone,
+        "phone_number": phone,
+        "mobile": phone,
+        "email": email,
+        "city": city,
+        "current_city": city,
+        "expected_city": city,
+        "location": city,
+        "education": _highest_degree(education_list) or source.get("education"),
+        "highest_education": _highest_degree(education_list) or source.get("highest_education"),
+        "degree": _highest_degree(education_list) or source.get("degree"),
+        "experience": _estimate_experience(work_list) or source.get("experience"),
+        "work_experience": _estimate_experience(work_list) or source.get("work_experience"),
+        "years_of_experience": _estimate_experience(work_list) or source.get("years_of_experience"),
+        "education_list": education_list,
+        "educationList": education_list,
+        "educations": education_list,
+        "education_background": education_list,
+        "work_list": work_list,
+        "workList": work_list,
+        "work_experiences": work_list,
+        "experiences": work_list,
+        "skills": skills,
+        "skill_tags": skills,
+        "skillTags": skills,
+    })
+    return normalized
+
+
+def _first_text(*values: Any) -> str:
+    for value in values:
+        if isinstance(value, list):
+            for item in value:
+                text = str(item).strip()
+                if text:
+                    return text
+        elif value is not None:
+            text = str(value).strip()
+            if text:
+                return text
+    return ""
+
+
+def _first_list(*values: Any) -> list[Any]:
+    for value in values:
+        if isinstance(value, list):
+            return value
+    return []
+
+
+def _normalize_education_item(item: Any) -> dict[str, Any]:
+    raw = item if isinstance(item, dict) else {"raw_text": str(item)}
+    period = _period_text(raw.get("period") or raw.get("time") or raw.get("date_range") or raw.get("duration"), raw)
+    return {
+        **raw,
+        "school": _first_text(raw.get("school"), raw.get("university"), raw.get("college"), raw.get("name")),
+        "university": _first_text(raw.get("school"), raw.get("university"), raw.get("college"), raw.get("name")),
+        "college": _first_text(raw.get("school"), raw.get("university"), raw.get("college"), raw.get("name")),
+        "major": _first_text(raw.get("major"), raw.get("profession"), raw.get("field")),
+        "profession": _first_text(raw.get("major"), raw.get("profession"), raw.get("field")),
+        "field": _first_text(raw.get("major"), raw.get("profession"), raw.get("field")),
+        "degree": _first_text(raw.get("degree"), raw.get("education"), raw.get("level")),
+        "education": _first_text(raw.get("degree"), raw.get("education"), raw.get("level")),
+        "level": _first_text(raw.get("degree"), raw.get("education"), raw.get("level")),
+        "period": period,
+        "time": period,
+        "date_range": period,
+        "duration": period,
+    }
+
+
+def _normalize_work_item(item: Any) -> dict[str, Any]:
+    raw = item if isinstance(item, dict) else {"raw_text": str(item)}
+    period = _period_text(raw.get("period") or raw.get("time") or raw.get("date_range") or raw.get("duration"), raw)
+    description = raw.get("description") or raw.get("responsibilities") or raw.get("duties") or ""
+    if isinstance(description, list):
+        description = "\n".join(str(part).strip() for part in description if str(part).strip())
+    position = _first_text(raw.get("position"), raw.get("job_title"), raw.get("title"), raw.get("role"))
+    company = _first_text(raw.get("company"), raw.get("company_name"), raw.get("name"))
+    return {
+        **raw,
+        "company": company,
+        "company_name": company,
+        "position": position,
+        "job_title": position,
+        "title": position,
+        "role": position,
+        "period": period,
+        "time": period,
+        "date_range": period,
+        "duration": period,
+        "description": str(description).strip(),
+        "responsibilities": description,
+        "duties": description,
+    }
+
+
+def _period_text(value: Any, raw: dict[str, Any]) -> str:
+    text = _first_text(value)
+    if text:
+        return text
+    start = _first_text(raw.get("start_date"))
+    end = _first_text(raw.get("end_date")) or "至今"
+    if start:
+        return f"{start.replace('-', '.')} - {end.replace('-', '.')}"
+    return ""
+
+
+def _highest_degree(education_list: list[dict[str, Any]]) -> str:
+    rank = {"博士": 6, "硕士": 5, "研究生": 4, "本科": 3, "学士": 3, "大专": 2, "中专": 1, "高中": 1}
+    best = ""
+    best_rank = -1
+    for item in education_list:
+        degree = str(item.get("degree") or "").strip()
+        current_rank = max((score for key, score in rank.items() if key in degree), default=0)
+        if degree and current_rank >= best_rank:
+            best = degree
+            best_rank = current_rank
+    return best
+
+
+def _estimate_experience(work_list: list[dict[str, Any]]) -> str:
+    total_months = 0
+    for item in work_list:
+        start = _date_to_month(item.get("start_date"))
+        end = _date_to_month(item.get("end_date")) or _date_to_month(item.get("start_date"))
+        if start and end and end >= start:
+            total_months += end - start + 1
+    if total_months <= 0:
+        return ""
+    years, months = divmod(total_months, 12)
+    if years and months:
+        return f"约{years}年{months}个月"
+    if years:
+        return f"约{years}年"
+    return f"约{months}个月"
+
+
+def _date_to_month(value: Any) -> int | None:
+    text = _first_text(value)
+    match = re.search(r"(\d{4})[-./年](\d{1,2})", text)
+    if not match:
+        return None
+    return int(match.group(1)) * 12 + int(match.group(2))

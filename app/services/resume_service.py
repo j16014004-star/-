@@ -15,7 +15,7 @@ from app.models.resume import Resume
 from app.utils.file_handler import delete_file, save_file
 from app.utils.text_extractor import extract_text
 from app.utils.text_processor import clean_text, split_into_chunks
-from app.utils.resume_parser import parse_resume
+from app.utils.resume_parser import normalize_structured_data_for_frontend, parse_resume
 
 
 async def upload_resume(
@@ -56,9 +56,9 @@ async def upload_resume(
         # 结构化解析（独立隔离，失败不阻断上传）
         structured_data = None
         try:
-            structured_data = parse_resume(cleaned_text)
+            structured_data = normalize_structured_data_for_frontend(parse_resume(cleaned_text))
         except Exception:
-            structured_data = {
+            structured_data = normalize_structured_data_for_frontend({
                 "parser_version": "rules-v1",
                 "basic_info": {"name": None, "phone": [], "email": [],
                                "location": None, "links": []},
@@ -67,7 +67,7 @@ async def upload_resume(
                 "projects": [],
                 "skills": [],
                 "warnings": ["parser_unexpected_error"],
-            }
+            })
 
         chunks = split_into_chunks(cleaned_text)
 

@@ -17,6 +17,7 @@ class ResumeAgentState(TypedDict, total=False):
     resume_text: str
     structured_data: dict[str, Any] | None
     request_payload: dict[str, Any]
+    max_output_tokens: int | None
     retrieval_query: str
     knowledge_chunks: list[KnowledgeChunk]
     raw_output: str
@@ -51,12 +52,14 @@ class ResumeOptimizationAgent:
         resume_text: str,
         structured_data: dict | None,
         request_payload: dict[str, Any],
+        max_output_tokens: int | None = None,
     ) -> ResumeAgentState:
         return await self.graph.ainvoke(
             {
                 'resume_text': resume_text,
                 'structured_data': structured_data,
                 'request_payload': request_payload,
+                'max_output_tokens': max_output_tokens,
             }
         )
 
@@ -83,6 +86,7 @@ class ResumeOptimizationAgent:
         response = await self.gateway.generate_json(
             system_prompt=SYSTEM_PROMPT,
             user_prompt=prompt,
+            max_tokens=state.get('max_output_tokens'),
         )
         return {'raw_output': response.content, 'token_usage': response.usage}
 
@@ -99,13 +103,58 @@ def _parse_json_object(raw: str) -> dict[str, Any]:
     if text.startswith('```'):
         text = re.sub(r'^```(?:json)?\s*', '', text, flags=re.IGNORECASE)
         text = re.sub(r'\s*```$', '', text)
-    try:
-        value = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise ValueError('AI 返回内容不是合法 JSON') from exc
-    if not isinstance(value, dict):
-        raise ValueError('AI 返回内容必须是 JSON 对象')
-    return value
+    candidates = [text]
+    extracted = _extract_first_json_object(text)
+    if extracted and extracted != text:
+        candidates.append(extracted)
+    last_error: json.JSONDecodeError | None = None
+    for candidate in candidates:
+        try:
+            value = json.loads(candidate)
+        except json.JSONDecodeError as exc:
+            last_error = exc
+            continue
+        if not isinstance(value, dict):
+            raise ValueError('AI 返回内容必须是 JSON 对象')
+        return value
+    if _looks_truncated_json(text):
+        raise ValueError('AI 返回 JSON 不完整，可能是输出 token 不足导致被截断')
+    raise ValueError('AI 返回内容不是合法 JSON') from last_error
+
+
+def _extract_first_json_object(text: str) -> str | None:
+    start = text.find('{')
+    if start < 0:
+        return None
+    depth = 0
+    in_string = False
+    escape = False
+    for index in range(start, len(text)):
+        char = text[index]
+        if in_string:
+            if escape:
+                escape = False
+            elif char == '\\':
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+        elif char == '{':
+            depth += 1
+        elif char == '}':
+            depth -= 1
+            if depth == 0:
+                return text[start:index + 1]
+    return None
+
+
+def _looks_truncated_json(text: str) -> bool:
+    start = text.find('{')
+    if start < 0:
+        return False
+    return _extract_first_json_object(text) is None
 
 
 def validate_resume_facts(
@@ -116,10 +165,10 @@ def validate_resume_facts(
     source_numbers = set(_numbers(original_resume))
     optimized_numbers = set(_numbers(result.optimized_content))
     unexpected_numbers = optimized_numbers - source_numbers
-    if unexpected_numbers:
-        raise ValueError('优化结果包含原简历不存在的数字，已阻止保存')
-
     questions = list(dict.fromkeys(q.strip() for q in result.confirmation_questions if q.strip()))
+    for number in sorted(unexpected_numbers, key=_number_sort_key):
+        questions.append(f'请确认优化结果中新增的数字“{number}”是否真实准确，原简历未包含该数字。')
+
     validated_items = []
     for item in result.change_items:
         normalized_original = _compact(item.original)
@@ -127,12 +176,14 @@ def validate_resume_facts(
             raise ValueError('修改项原文无法在原简历中找到')
         new_numbers = set(_numbers(item.optimized)) - source_numbers
         if new_numbers:
-            raise ValueError('修改项包含原简历不存在的数字，已阻止保存')
+            item.requires_confirmation = True
+            for number in sorted(new_numbers, key=_number_sort_key):
+                questions.append(f'请确认“{item.section}”中新增的数字“{number}”是否真实准确。')
         if item.requires_confirmation and not questions:
             questions.append(f'请确认“{item.section}”中的补充信息是否准确。')
         validated_items.append(item)
     result.change_items = validated_items
-    result.confirmation_questions = questions
+    result.confirmation_questions = list(dict.fromkeys(questions))[:30]
     return result
 
 
@@ -141,4 +192,20 @@ def _compact(text: str) -> str:
 
 
 def _numbers(text: str) -> list[str]:
-    return re.findall(r'(?<!\d)\d+(?:\.\d+)?%?', text or '')
+    text = text or ''
+    numbers: list[str] = []
+    date_pattern = re.compile(r'(?<!\d)((?:19|20)\d{2})[./\-年](0?[1-9]|1[0-2])月?(?!\d)')
+    for match in date_pattern.finditer(text):
+        year, month = match.groups()
+        numbers.append(f'{year}.{int(month):02d}')
+    text_without_dates = date_pattern.sub(' ', text)
+    numbers.extend(re.findall(r'(?<![\d.])\d+(?:\.\d+)?%?(?![\d.])', text_without_dates))
+    return numbers
+
+
+def _number_sort_key(value: str) -> tuple[float, str]:
+    number = value.rstrip('%')
+    try:
+        return (float(number), value)
+    except ValueError:
+        return (0.0, value)

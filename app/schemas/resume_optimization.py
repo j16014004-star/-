@@ -36,6 +36,43 @@ class ResumeOptimizationRequest(BaseModel):
         return self
 
 
+class ConfirmationAIApplyRequest(BaseModel):
+    optimized_content: str = Field(min_length=1, max_length=50000)
+    confirmation_questions: list[str] = Field(default_factory=list, max_length=30)
+    feedback: str | None = Field(default=None, max_length=2000)
+
+
+class ManualConfirmationItem(BaseModel):
+    question: str = Field(min_length=1, max_length=1000)
+    answer: str = Field(min_length=1, max_length=4000)
+
+
+class ConfirmationManualApplyRequest(BaseModel):
+    optimized_content: str = Field(min_length=1, max_length=50000)
+    confirmations: list[ManualConfirmationItem] = Field(min_length=1, max_length=30)
+
+
+class ConfirmationDismissRequest(BaseModel):
+    confirmation_questions: list[str] = Field(default_factory=list, max_length=30)
+
+
+class ConfirmationAction(BaseModel):
+    type: Literal['ai', 'manual', 'dismiss']
+    title: str = Field(min_length=1, max_length=100)
+    questions: list[str] = Field(default_factory=list, max_length=30)
+    added_content: str | None = Field(default=None, max_length=10000)
+    summary: str | None = Field(default=None, max_length=2000)
+    feedback: str | None = Field(default=None, max_length=2000)
+    created_at: str = Field(min_length=1, max_length=50)
+
+
+class OptimizationSaveRequest(BaseModel):
+    optimized_content: str = Field(min_length=1, max_length=50000)
+    confirmation_actions: list[ConfirmationAction] = Field(default_factory=list, max_length=30)
+    change_items: list[dict] | None = Field(default=None, max_length=50)
+    confirmation_questions: list[str] | None = Field(default=None, max_length=30)
+
+
 class AIStartTaskResponse(BaseModel):
     task_id: str
     status: AITaskStatus

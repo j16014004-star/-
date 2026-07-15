@@ -13,6 +13,7 @@ from app.models.resume import Resume
 from app.models.user import User
 from app.services.resume_service import remove_resume, upload_resume
 from app.utils.file_handler import get_user_file_path
+from app.utils.resume_parser import normalize_structured_data_for_frontend
 
 router = APIRouter(prefix="/api/resumes", tags=["简历"])
 
@@ -43,14 +44,29 @@ def serialize_resume(resume: Resume, include_detail: bool = False) -> dict:
         "updated_at": resume.updated_at,
     }
     if include_detail:
+        structured_data = normalize_structured_data_for_frontend(resume.structured_data)
         data["extracted_text"] = resume.extracted_text
-        data["structured_data"] = resume.structured_data
+        data["raw_text"] = resume.extracted_text
+        data["text"] = resume.extracted_text
+        data["parsed_text"] = resume.extracted_text
+        data["structured_data"] = structured_data
+        data["structured_content"] = structured_data
+        data["parsed_content"] = structured_data
+        data["resume_content"] = structured_data
+        data["content"] = {
+            **structured_data,
+            "extracted_text": resume.extracted_text,
+            "raw_text": resume.extracted_text,
+            "text": resume.extracted_text,
+            "parsed_text": resume.extracted_text,
+        }
         data["chunks"] = [
             {
                 "id": chunk.id,
                 "chunk_index": chunk.chunk_index,
                 "content": chunk.content,
                 "char_count": chunk.char_count,
+                "metadata": {"source": "resume"},
                 "created_at": chunk.created_at,
             }
             for chunk in sorted(resume.chunks, key=lambda item: item.chunk_index)

@@ -15,6 +15,7 @@ from app.crud.ai_task import (
     claim_provider_call,
     count_active_tasks_for_user,
     count_started_provider_calls,
+    count_total_provider_tokens,
     create_ai_task,
     get_ai_task,
     get_reusable_task,
@@ -149,10 +150,16 @@ async def execute_resume_optimization_task(task_id: str) -> None:
 
             if not settings.TENCENT_MAAS_API_KEY.strip():
                 raise ResumeOptimizationError('未配置腾讯云 MaaS API Key', 503)
+            max_output_tokens = settings.AI_MAX_OUTPUT_TOKENS
             if settings.AI_TEST_MODE:
                 used_calls = await count_started_provider_calls(db, exclude_task_id=task.id)
                 if used_calls >= settings.AI_TEST_MAX_LIVE_CALLS:
                     raise ResumeOptimizationError('测试模式的真实模型调用额度已用完', 429)
+                used_tokens = await count_total_provider_tokens(db, exclude_task_id=task.id)
+                remaining_tokens = settings.AI_TEST_MAX_TOTAL_TOKENS - used_tokens
+                if remaining_tokens <= 0:
+                    raise ResumeOptimizationError('测试模式的 AI token 总用量已达到上限', 429)
+                max_output_tokens = max(1, min(settings.AI_MAX_OUTPUT_TOKENS, remaining_tokens))
             await claim_provider_call(db, task, utc_now_naive())
             task.status = 'generating'
             task.progress = 30
@@ -163,6 +170,7 @@ async def execute_resume_optimization_task(task_id: str) -> None:
             resume_text=resume_text,
             structured_data=structured_data,
             request_payload=request_payload,
+            max_output_tokens=max_output_tokens,
         )
 
         async with async_session() as db:
@@ -202,6 +210,7 @@ async def execute_resume_optimization_task(task_id: str) -> None:
                 optimized_content=result.optimized_content,
                 change_items=[item.model_dump(mode='json') for item in result.change_items],
                 confirmation_questions=result.confirmation_questions,
+                confirmation_actions=[],
                 score_improvement=result.score_improvement,
                 knowledge_base_version=kb_version,
                 retrieved_chunk_ids=[chunk.id for chunk in chunks],
