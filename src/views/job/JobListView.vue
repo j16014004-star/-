@@ -15,15 +15,39 @@
             </el-button>
           </div>
 
-          <template v-if="currentResume">
+          <template v-if="currentResumeOption">
+            <el-select
+              v-model="selectedResumeKey"
+              class="w-full"
+              :disabled="isBusy"
+              placeholder="选择原始简历或优化简历"
+              @change="handleResumeChange"
+            >
+              <el-option-group v-if="originalResumeOptions.length" label="原始简历">
+                <el-option
+                  v-for="resume in originalResumeOptions"
+                  :key="resume.key"
+                  :label="resume.title"
+                  :value="resume.key"
+                />
+              </el-option-group>
+              <el-option-group v-if="optimizedResumeOptions.length" label="优化简历">
+                <el-option
+                  v-for="resume in optimizedResumeOptions"
+                  :key="resume.key"
+                  :label="resume.title"
+                  :value="resume.key"
+                />
+              </el-option-group>
+            </el-select>
             <div class="flex flex-wrap items-center gap-2">
-              <span class="font-medium text-gray-800">{{ currentResume.title }}</span>
-              <el-tag size="small" :type="currentResume.status === 'completed' ? 'success' : 'warning'" effect="plain">
-                {{ getResumeStatusText(currentResume.status) }}
+              <span class="mt-3 font-medium text-gray-800">{{ currentResumeOption.title }}</span>
+              <el-tag size="small" :type="currentResumeOption.source === 'optimized' ? 'primary' : 'success'" effect="plain">
+                {{ currentResumeOption.source === 'optimized' ? '优化简历' : '原始简历' }}
               </el-tag>
             </div>
             <div class="mt-2 text-sm text-gray-500">
-              上传时间：{{ formatDate(currentResume.created_at) }}
+              {{ currentResumeOption.source === 'optimized' ? '保存时间' : '上传时间' }}：{{ formatDate(currentResumeOption.createdAt) }}
             </div>
           </template>
 
@@ -38,9 +62,10 @@
             <el-select
               v-model="selectedSource"
               class="flex-1"
-              :disabled="!currentResume || isBusy"
+              :disabled="!currentResumeOption || isBusy"
               placeholder="选择平台"
               filterable
+              @change="handlePlatformChange"
             >
               <el-option
                 v-for="platform in platforms"
@@ -64,14 +89,80 @@
           <div v-if="selectedPlatform" class="mt-3 text-sm text-gray-500">
             登录状态：{{ getLoginStatusText(selectedPlatform.login_status) }}
           </div>
+
+          <div class="mt-4 grid gap-3 sm:grid-cols-2">
+            <div>
+              <div class="mb-2 flex items-center justify-between gap-2 text-sm text-gray-600">
+                <span>具体岗位 <span class="text-red-500">*</span></span>
+                <el-button
+                  link
+                  type="primary"
+                  :disabled="isBusy"
+                  @click="openCustomRoleDialog"
+                >
+                  + 新增自定义岗位
+                </el-button>
+              </div>
+              <el-select
+                v-model="selectedTargetRole"
+                class="w-full"
+                :disabled="isBusy"
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                reserve-keyword
+                placeholder="选择岗位，或输入新岗位后按回车"
+                no-data-text="按回车添加该自定义岗位"
+                @change="handleTargetRoleChange"
+              >
+                <el-option v-for="role in targetRoleOptions" :key="role" :label="role" :value="role" />
+              </el-select>
+              <div class="mt-1 text-xs text-gray-400">支持搜索、下拉选择，也可以直接输入任意岗位名称。</div>
+            </div>
+            <div>
+              <div class="mb-2 text-sm text-gray-600">目标城市 <span class="text-red-500">*</span></div>
+              <el-select
+                v-model="selectedCity"
+                class="w-full"
+                :disabled="isBusy"
+                filterable
+                allow-create
+                default-first-option
+                clearable
+                placeholder="选择或输入目标城市"
+                @change="handleIntentChange"
+              >
+                <el-option v-for="city in cityOptions" :key="city" :label="city" :value="city" />
+              </el-select>
+              <div class="mt-1 text-xs text-gray-400">请选择招聘平台支持的城市。</div>
+            </div>
+          </div>
         </div>
       </div>
 
       <div v-if="showTaskStatus" class="mt-5 rounded-lg border border-gray-100 bg-gray-50 p-4">
+        <el-alert
+          v-if="flowStatus === 'need_login'"
+          title="58同城登录状态已经失效，请点击下方“重新登录并推荐”后继续。"
+          type="error"
+          :closable="false"
+          show-icon
+          class="mb-4"
+        />
+        <el-alert
+          v-if="flowStatus === 'waiting_login'"
+          title="登录窗口由后端受控浏览器打开，请在那里完成扫码、验证码或登录操作；不要另开普通浏览器标签登录。"
+          type="warning"
+          :closable="false"
+          show-icon
+          class="mb-4"
+        />
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <el-tag :type="statusTagType" effect="light">{{ statusTitle }}</el-tag>
             <span class="text-sm text-gray-600">{{ statusMessage }}</span>
+            <el-tag v-if="failureCode" size="small" type="danger" effect="plain">{{ failureCode }}</el-tag>
           </div>
           <span v-if="taskId" class="text-xs text-gray-400">任务 {{ taskId }}</span>
         </div>
@@ -99,6 +190,23 @@
             {{ skill }}
           </el-tag>
         </div>
+
+        <div v-if="searchKeywords.length" class="mt-4 text-xs text-gray-500">
+          <span class="font-medium">搜索关键词：</span>{{ searchKeywords.join('、') }}
+        </div>
+
+        <el-collapse v-if="hasCrawlDiagnostics" class="mt-3">
+          <el-collapse-item title="采集诊断信息" name="diagnostics">
+            <div class="grid gap-2 text-xs text-gray-500 sm:grid-cols-3">
+              <span>查询次数：{{ crawlDiagnostics.query_count || 0 }}</span>
+              <span>源站岗位：{{ crawlDiagnostics.raw_items || 0 }}</span>
+              <span>解析成功：{{ crawlDiagnostics.parsed_items || 0 }}</span>
+              <span>最终接受：{{ crawlDiagnostics.accepted_items || 0 }}</span>
+              <span>无效数据：{{ crawlDiagnostics.invalid_items || 0 }}</span>
+              <span>重复数据：{{ crawlDiagnostics.duplicate_items || 0 }}</span>
+            </div>
+          </el-collapse-item>
+        </el-collapse>
       </div>
     </el-card>
 
@@ -199,7 +307,7 @@
                 class="flex-1"
                 :icon="Position"
                 :loading="applyingId === job.id"
-                :disabled="!job.isActive || !currentResume"
+                :disabled="!job.isActive || !currentResumeOption"
                 @click="handleApply(job)"
               >
                 记录投递
@@ -226,7 +334,13 @@
     </template>
 
     <el-empty
-      v-else-if="!showTaskStatus && !currentResume"
+      v-else-if="flowStatus === 'no_results'"
+      :description="statusMessage || '当前条件暂无精准岗位，请调整目标岗位或城市后重试'"
+      class="py-16"
+    />
+
+    <el-empty
+      v-else-if="!showTaskStatus && !currentResumeOption"
       description="上传简历后开始岗位推荐"
       class="py-16"
     >
@@ -295,7 +409,7 @@
               type="primary"
               :icon="Position"
               :loading="applyingId === detailJob.id"
-              :disabled="!detailJob.isActive || !currentResume"
+              :disabled="!detailJob.isActive || !currentResumeOption"
               @click="handleApply(detailJob)"
             >
               记录投递
@@ -307,6 +421,29 @@
         </template>
       </div>
     </el-drawer>
+
+    <el-dialog
+      v-model="customRoleDialogVisible"
+      title="新增自定义岗位"
+      width="440px"
+      destroy-on-close
+      @closed="customRoleInput = ''"
+    >
+      <el-input
+        v-model="customRoleInput"
+        maxlength="100"
+        show-word-limit
+        clearable
+        autofocus
+        placeholder="例如：大模型应用开发工程师"
+        @keyup.enter="confirmCustomRole"
+      />
+      <div class="mt-2 text-xs text-gray-400">保存后会自动选中，并按该岗位生成推荐。</div>
+      <template #footer>
+        <el-button @click="customRoleDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="confirmCustomRole">添加并选中</el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -317,11 +454,11 @@ import { Briefcase, Link, Position, Refresh, Timer, TopRight, Upload } from '@el
 import { ElMessage } from 'element-plus'
 import { jobApi } from '@/api/job'
 import { resumeApi } from '@/api/resume'
-import type { Job, Resume } from '@/types'
-import type { JobPlatform, JobRecommendTask } from '@/api/types/job'
+import type { Job, Resume, ResumeOptimizeResult } from '@/types'
+import type { JobCrawlDiagnostics, JobPlatform, JobRecommendTask, JobResumeSource } from '@/api/types/job'
 
 type SortKey = 'match' | 'salary' | 'date'
-type FlowStatus = 'idle' | 'waiting_login' | 'crawling' | 'matching' | 'success' | 'failed' | 'need_login'
+type FlowStatus = 'idle' | 'waiting_login' | 'pending' | 'crawling' | 'matching' | 'success' | 'no_results' | 'failed' | 'need_login'
 
 interface JobItem {
   id: number
@@ -345,12 +482,27 @@ interface JobItem {
   createdAt: string
 }
 
+interface RecommendationResumeOption {
+  key: string
+  source: JobResumeSource
+  resumeId: number
+  optimizationId?: number
+  title: string
+  createdAt?: string
+}
+
 const router = useRouter()
 
 const resumes = ref<Resume[]>([])
+const savedOptimizations = ref<ResumeOptimizeResult[]>([])
 const platforms = ref<JobPlatform[]>([])
-const selectedResumeId = ref<number | null>(null)
+const selectedResumeKey = ref('')
 const selectedSource = ref('')
+const selectedTargetRole = ref('')
+const selectedCity = ref('北京')
+const customTargetRoles = ref<string[]>([])
+const customRoleDialogVisible = ref(false)
+const customRoleInput = ref('')
 const sortBy = ref<SortKey>('match')
 const currentPage = ref(1)
 const pageSize = ref(9)
@@ -361,6 +513,7 @@ const isPollingLogin = ref(false)
 const isPollingTask = ref(false)
 const isResultLoading = ref(false)
 const isDetailLoading = ref(false)
+const isBackgroundChecking = ref(false)
 const detailVisible = ref(false)
 const applyingId = ref<number | null>(null)
 
@@ -370,7 +523,9 @@ const progress = ref(0)
 const loginSessionId = ref('')
 const taskId = ref('')
 const extractedSkills = ref<string[]>([])
-const recommendationStartRequested = ref(false)
+const searchKeywords = ref<string[]>([])
+const failureCode = ref<string | null>(null)
+const crawlDiagnostics = reactive<JobCrawlDiagnostics>({})
 const taskStats = reactive({
   totalFound: 0,
   totalSaved: 0,
@@ -381,26 +536,81 @@ const jobs = ref<JobItem[]>([])
 const detailJob = ref<JobItem | null>(null)
 let loginPollTimer: number | undefined
 let taskPollTimer: number | undefined
+let backgroundStatusTimer: number | undefined
 
-const currentResume = computed(() => {
-  return resumes.value.find((resume) => resume.id === selectedResumeId.value) || null
+const defaultTargetRoleOptions = [
+  'Python后端开发工程师', 'Java开发工程师', 'Web前端开发工程师', '数据分析师',
+  '产品经理', '测试工程师', '运维工程师', '厨师',
+]
+const cityOptions = [
+  '北京', '上海', '广州', '深圳', '杭州', '成都', '西安', '武汉', '南京', '重庆',
+  '苏州', '天津', '郑州', '东莞', '青岛', '沈阳', '宁波', '昆明', '大连', '长沙',
+]
+
+const originalResumeOptions = computed<RecommendationResumeOption[]>(() => {
+  return resumes.value
+    .filter((resume) => resume.status === 'completed')
+    .map((resume) => ({
+      key: `original:${resume.id}`,
+      source: 'original',
+      resumeId: resume.id,
+      title: resume.title || `原始简历 ${resume.id}`,
+      createdAt: resume.created_at,
+    }))
+})
+
+const optimizedResumeOptions = computed<RecommendationResumeOption[]>(() => {
+  return savedOptimizations.value
+    .filter((resume) => Number(resume.id) > 0 && Number(resume.resume_id) > 0)
+    .map((resume) => ({
+      key: `optimized:${resume.id}`,
+      source: 'optimized',
+      resumeId: Number(resume.resume_id),
+      optimizationId: Number(resume.id),
+      title: resume.title || `优化简历 ${resume.id}`,
+      createdAt: resume.saved_at || resume.created_at,
+    }))
+})
+
+const allResumeOptions = computed(() => [...originalResumeOptions.value, ...optimizedResumeOptions.value])
+
+const currentResumeOption = computed(() => {
+  return allResumeOptions.value.find((resume) => resume.key === selectedResumeKey.value) || null
 })
 
 const selectedPlatform = computed(() => {
   return platforms.value.find((platform) => platform.source === selectedSource.value) || null
 })
 
+const targetRoleOptions = computed(() => {
+  const selectedRole = selectedTargetRole.value.trim()
+  return Array.from(new Set([
+    ...defaultTargetRoleOptions,
+    ...customTargetRoles.value,
+    ...(selectedRole ? [selectedRole] : []),
+  ]))
+})
+
 const isBusy = computed(() => {
-  return isStarting.value || ['waiting_login', 'crawling', 'matching'].includes(flowStatus.value)
+  return isStarting.value || ['waiting_login', 'pending', 'crawling', 'matching'].includes(flowStatus.value)
 })
 
 const canStart = computed(() => {
-  return Boolean(currentResume.value && selectedSource.value && selectedPlatform.value?.enabled && !isBusy.value)
+  return Boolean(
+    currentResumeOption.value
+      && selectedSource.value
+      && selectedPlatform.value?.enabled
+      && selectedTargetRole.value.trim()
+      && selectedCity.value
+      && !isBusy.value,
+  )
 })
 
 const showTaskStatus = computed(() => {
   return flowStatus.value !== 'idle' || Boolean(taskId.value || loginSessionId.value)
 })
+
+const hasCrawlDiagnostics = computed(() => Object.values(crawlDiagnostics).some((value) => typeof value === 'number' && value > 0))
 
 const sortedJobs = computed(() => {
   return [...jobs.value].sort((a, b) => {
@@ -416,8 +626,9 @@ const sortedJobs = computed(() => {
 
 const startButtonText = computed(() => {
   if (flowStatus.value === 'waiting_login') return '等待登录'
-  if (flowStatus.value === 'crawling' || flowStatus.value === 'matching') return '生成中'
-  if (flowStatus.value === 'success' || flowStatus.value === 'failed' || flowStatus.value === 'need_login') return '重新生成推荐'
+  if (flowStatus.value === 'pending' || flowStatus.value === 'crawling' || flowStatus.value === 'matching') return '生成中'
+  if (flowStatus.value === 'need_login') return '重新登录并推荐'
+  if (['success', 'no_results', 'failed'].includes(flowStatus.value)) return '重新抓取最新岗位'
   return '登录并生成推荐'
 })
 
@@ -425,9 +636,11 @@ const statusTitle = computed(() => {
   const titles: Record<FlowStatus, string> = {
     idle: '待开始',
     waiting_login: '等待登录',
+    pending: '等待执行',
     crawling: '采集中',
     matching: '匹配中',
     success: '已完成',
+    no_results: '暂无结果',
     failed: '失败',
     need_login: '需要登录',
   }
@@ -436,6 +649,7 @@ const statusTitle = computed(() => {
 
 const statusTagType = computed(() => {
   if (flowStatus.value === 'success') return 'success'
+  if (flowStatus.value === 'no_results') return 'warning'
   if (flowStatus.value === 'failed' || flowStatus.value === 'need_login') return 'danger'
   if (flowStatus.value === 'waiting_login') return 'warning'
   return 'info'
@@ -443,40 +657,163 @@ const statusTagType = computed(() => {
 
 const progressStatus = computed(() => {
   if (flowStatus.value === 'success') return 'success'
+  if (flowStatus.value === 'no_results') return 'warning'
   if (flowStatus.value === 'failed' || flowStatus.value === 'need_login') return 'exception'
   return undefined
 })
 
 onMounted(() => {
   loadInitialData()
+  backgroundStatusTimer = window.setInterval(checkBackgroundStatus, 30000)
+  document.addEventListener('visibilitychange', handleVisibilityChange)
 })
 
 onBeforeUnmount(() => {
   clearLoginPolling()
   clearTaskPolling()
+  if (backgroundStatusTimer) window.clearInterval(backgroundStatusTimer)
+  document.removeEventListener('visibilitychange', handleVisibilityChange)
 })
 
 async function loadInitialData() {
   isInitialLoading.value = true
   try {
-    const [resumeResponse, platformResponse] = await Promise.all([
-      resumeApi.getList({ page: 1, page_size: 20 }),
+    const [resumeResponse, savedOptimizationResponse, platformResponse] = await Promise.all([
+      resumeApi.getList({ page: 1, page_size: 100 }),
+      resumeApi.getSavedOptimizations({ page: 1, page_size: 100 }).catch(() => null),
       jobApi.getPlatforms(),
     ])
 
     resumes.value = resumeResponse.data.items || []
+    savedOptimizations.value = savedOptimizationResponse?.data.items || []
     platforms.value = platformResponse.data.items || []
 
-    const firstCompletedResume = resumes.value.find((resume) => resume.status === 'completed')
-    selectedResumeId.value = firstCompletedResume?.id || resumes.value[0]?.id || null
+    const firstResume = optimizedResumeOptions.value[0] || originalResumeOptions.value[0]
+    if (!allResumeOptions.value.some((resume) => resume.key === selectedResumeKey.value)) {
+      selectedResumeKey.value = firstResume?.key || ''
+    }
 
     const firstEnabledPlatform = platforms.value.find((platform) => platform.enabled)
     selectedSource.value = selectedSource.value || firstEnabledPlatform?.source || ''
+    await restoreCurrentTask()
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '加载岗位推荐初始化数据失败'))
   } finally {
     isInitialLoading.value = false
   }
+}
+
+async function restoreCurrentTask() {
+  const selectedResume = currentResumeOption.value
+  if (!selectedResume || !selectedSource.value) return
+  try {
+    const response = await jobApi.getCurrentRecommendation({
+      resume_id: selectedResume.resumeId,
+      resume_source: selectedResume.source,
+      resume_optimization_id: selectedResume.optimizationId,
+      source: selectedSource.value,
+    })
+    const task = response.data.task
+    if (!task) return
+    applyTaskState(task)
+    selectedTargetRole.value = task.target_role || selectedTargetRole.value
+    selectedCity.value = task.target_city || selectedCity.value
+    if (task.status === 'need_login') {
+      const platform = platforms.value.find((item) => item.source === selectedSource.value)
+      if (platform) platform.login_status = 'expired'
+      ElMessage.warning('58同城登录状态已失效，请重新登录后拉取最新岗位')
+    }
+    if (task.status === 'success' || task.status === 'no_results') {
+      await loadRecommendationResults()
+    } else if (['pending', 'crawling', 'matching'].includes(task.status)) {
+      startTaskPolling()
+    }
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '恢复岗位推荐任务失败'))
+  }
+}
+
+async function checkBackgroundStatus() {
+  const selectedResume = currentResumeOption.value
+  if (document.hidden || isBackgroundChecking.value || !selectedResume || !selectedSource.value) return
+  isBackgroundChecking.value = true
+  try {
+    const [platformResponse, taskResponse] = await Promise.all([
+      jobApi.getPlatforms(),
+      jobApi.getCurrentRecommendation({
+        resume_id: selectedResume.resumeId,
+        resume_source: selectedResume.source,
+        resume_optimization_id: selectedResume.optimizationId,
+        source: selectedSource.value,
+      }),
+    ])
+    platforms.value = platformResponse.data.items || platforms.value
+    const platform = platforms.value.find((item) => item.source === selectedSource.value)
+    const latestTask = taskResponse.data.task
+    if (latestTask && latestTask.task_id !== taskId.value) {
+      applyTaskState(latestTask)
+      if (['pending', 'crawling', 'matching'].includes(latestTask.status)) startTaskPolling()
+      else if (latestTask.status === 'success' || latestTask.status === 'no_results') await loadRecommendationResults()
+    }
+    if (platform?.login_status === 'expired' && flowStatus.value !== 'waiting_login') {
+      const wasNeedLogin = flowStatus.value === 'need_login'
+      flowStatus.value = 'need_login'
+      statusMessage.value = '58同城登录状态已失效，请重新登录后拉取最新岗位'
+      if (!wasNeedLogin) ElMessage.warning(statusMessage.value)
+    }
+  } catch {
+    // 后台状态探测失败不打断用户当前页面，下个周期自动重试。
+  } finally {
+    isBackgroundChecking.value = false
+  }
+}
+
+async function handleResumeChange() {
+  resetRecommendationState()
+  await restoreCurrentTask()
+}
+
+async function handlePlatformChange() {
+  resetRecommendationState()
+  await restoreCurrentTask()
+}
+
+function handleIntentChange() {
+  if (!isBusy.value) resetRecommendationState()
+}
+
+function handleTargetRoleChange(value: string) {
+  const normalizedRole = value?.trim() || ''
+  selectedTargetRole.value = normalizedRole
+  if (normalizedRole && !defaultTargetRoleOptions.includes(normalizedRole) && !customTargetRoles.value.includes(normalizedRole)) {
+    customTargetRoles.value.push(normalizedRole)
+    ElMessage.success(`已添加自定义岗位“${normalizedRole}”`)
+  }
+  handleIntentChange()
+}
+
+function openCustomRoleDialog() {
+  customRoleInput.value = ''
+  customRoleDialogVisible.value = true
+}
+
+function confirmCustomRole() {
+  const role = customRoleInput.value.trim()
+  if (!role) {
+    ElMessage.warning('请输入自定义岗位名称')
+    return
+  }
+  if (role.length > 100) {
+    ElMessage.warning('目标岗位不能超过 100 个字符')
+    return
+  }
+  selectedTargetRole.value = role
+  if (!defaultTargetRoleOptions.includes(role) && !customTargetRoles.value.includes(role)) {
+    customTargetRoles.value.push(role)
+  }
+  customRoleDialogVisible.value = false
+  handleIntentChange()
+  ElMessage.success(`已选择自定义岗位“${role}”`)
 }
 
 function goUploadResume() {
@@ -485,7 +822,8 @@ function goUploadResume() {
 
 async function handleStartFlow() {
   if (isBusy.value) return
-  if (!currentResume.value) {
+  const selectedResume = currentResumeOption.value
+  if (!selectedResume) {
     ElMessage.warning('请先上传简历')
     goUploadResume()
     return
@@ -498,47 +836,60 @@ async function handleStartFlow() {
     ElMessage.warning('该招聘平台暂未开放')
     return
   }
+  if (!selectedTargetRole.value.trim()) {
+    ElMessage.warning('请选择或输入目标岗位')
+    return
+  }
+  if (selectedTargetRole.value.trim().length > 100) {
+    ElMessage.warning('目标岗位不能超过 100 个字符')
+    return
+  }
+  if (!selectedCity.value) {
+    ElMessage.warning('请选择目标城市')
+    return
+  }
 
   resetRecommendationState()
-  const loginWindow = window.open('', '_blank')
-  if (loginWindow) {
-    loginWindow.opener = null
-  }
   isStarting.value = true
   flowStatus.value = 'waiting_login'
-  statusMessage.value = '正在打开招聘平台登录页'
+  statusMessage.value = '正在启动平台登录与岗位推荐'
   progress.value = 5
 
   try {
     const response = await jobApi.startPlatformLogin({
       source: selectedSource.value,
-      resume_id: currentResume.value.id,
+      resume_id: selectedResume.resumeId,
+      resume_source: selectedResume.source,
+      resume_optimization_id: selectedResume.optimizationId,
+      target_role: selectedTargetRole.value.trim(),
+      target_city: selectedCity.value,
+      limit: 20,
     })
     const session = response.data
     loginSessionId.value = session.login_session_id
-    statusMessage.value = '请完成招聘平台登录'
+    taskId.value = session.recommend_task_id || ''
+    statusMessage.value = session.status === 'logged_in'
+      ? '已检测到登录态，正在生成岗位推荐'
+      : '请在后端弹出的受控浏览器中完成58同城登录'
     progress.value = 10
 
     if (session.status === 'logged_in') {
-      loginWindow?.close()
-      await startRecommendationTask()
+      if (taskId.value) startTaskPolling()
+      else {
+        flowStatus.value = 'failed'
+        statusMessage.value = '登录已成功，但后端没有返回推荐任务 ID'
+      }
       return
     }
 
-    if (session.login_url) {
-      if (loginWindow) {
-        loginWindow.location.href = session.login_url
-        loginWindow.focus()
-      } else {
-        window.open(session.login_url, '_blank', 'noopener,noreferrer')
-      }
-    } else if (loginWindow) {
-      loginWindow.close()
+    if (session.status === 'waiting_login') {
+      startLoginPolling()
+    } else {
+      flowStatus.value = session.status === 'expired' ? 'need_login' : 'failed'
+      statusMessage.value = session.error_message || '招聘平台登录启动失败'
+      progress.value = 0
     }
-
-    startLoginPolling()
   } catch (error: unknown) {
-    loginWindow?.close()
     flowStatus.value = 'failed'
     statusMessage.value = getErrorMessage(error, '启动平台登录失败')
     progress.value = 0
@@ -561,23 +912,28 @@ function clearLoginPolling() {
 }
 
 async function pollLoginStatus() {
-  if (!loginSessionId.value || isPollingLogin.value) return
+  if (!loginSessionId.value || isPollingLogin.value || document.hidden) return
   isPollingLogin.value = true
   try {
     const response = await jobApi.getPlatformLoginStatus(loginSessionId.value)
     const loginStatus = response.data
-    statusMessage.value = loginStatus.message || '等待用户完成登录'
+    taskId.value = loginStatus.recommend_task_id || taskId.value
+    statusMessage.value = loginStatus.error_message || '等待用户在后端弹出的浏览器中完成登录'
 
-    if (loginStatus.status === 'logged_in' || loginStatus.is_authenticated) {
+    if (loginStatus.status === 'logged_in') {
       clearLoginPolling()
-      await startRecommendationTask()
+      if (taskId.value) startTaskPolling()
+      else {
+        flowStatus.value = 'failed'
+        statusMessage.value = '登录已成功，但后端没有返回推荐任务 ID'
+      }
       return
     }
 
     if (loginStatus.status === 'expired' || loginStatus.status === 'failed') {
       clearLoginPolling()
       flowStatus.value = loginStatus.status === 'expired' ? 'need_login' : 'failed'
-      statusMessage.value = loginStatus.message || '平台登录失败'
+      statusMessage.value = loginStatus.error_message || '平台登录失败'
       progress.value = 0
     }
   } catch (error: unknown) {
@@ -587,32 +943,6 @@ async function pollLoginStatus() {
     progress.value = 0
   } finally {
     isPollingLogin.value = false
-  }
-}
-
-async function startRecommendationTask() {
-  if (!currentResume.value || !loginSessionId.value) return
-  if (recommendationStartRequested.value) return
-  recommendationStartRequested.value = true
-  clearLoginPolling()
-  flowStatus.value = 'crawling'
-  statusMessage.value = '正在启动岗位采集'
-  progress.value = 20
-
-  try {
-    const response = await jobApi.startRecommendation({
-      resume_id: currentResume.value.id,
-      source: selectedSource.value,
-      login_session_id: loginSessionId.value,
-      limit: 50,
-    })
-    applyTaskState(response.data)
-    startTaskPolling()
-  } catch (error: unknown) {
-    recommendationStartRequested.value = false
-    flowStatus.value = 'failed'
-    statusMessage.value = getErrorMessage(error, '启动岗位推荐任务失败')
-    progress.value = 0
   }
 }
 
@@ -630,19 +960,24 @@ function clearTaskPolling() {
 }
 
 async function pollRecommendationTask() {
-  if (!taskId.value || isPollingTask.value) return
+  if (!taskId.value || isPollingTask.value || document.hidden) return
   isPollingTask.value = true
   try {
     const response = await jobApi.getRecommendationTask(taskId.value)
     applyTaskState(response.data)
 
-    if (response.data.status === 'success') {
+    if (response.data.status === 'success' || response.data.status === 'no_results') {
       clearTaskPolling()
       await loadRecommendationResults()
     }
 
     if (response.data.status === 'failed' || response.data.status === 'need_login') {
       clearTaskPolling()
+      if (response.data.status === 'need_login') {
+        const platform = platforms.value.find((item) => item.source === selectedSource.value)
+        if (platform) platform.login_status = 'expired'
+        ElMessage.warning('58同城登录状态已失效，请重新登录后继续推荐')
+      }
     }
   } catch (error: unknown) {
     clearTaskPolling()
@@ -659,21 +994,27 @@ function applyTaskState(task: JobRecommendTask) {
   flowStatus.value = normalizeTaskStatus(task.status)
   progress.value = Math.max(progress.value, task.progress ?? getFallbackProgress(task.status))
   extractedSkills.value = task.extracted_skills || extractedSkills.value
+  searchKeywords.value = task.search_keywords || searchKeywords.value
+  failureCode.value = task.failure_code || null
+  Object.keys(crawlDiagnostics).forEach((key) => delete crawlDiagnostics[key])
+  Object.assign(crawlDiagnostics, task.crawl_diagnostics || {})
   taskStats.totalFound = task.total_found ?? taskStats.totalFound
   taskStats.totalSaved = task.total_saved ?? taskStats.totalSaved
   taskStats.totalMatched = task.total_matched ?? taskStats.totalMatched
-  statusMessage.value = task.message || getDefaultStatusMessage(flowStatus.value)
+  selectedTargetRole.value = task.target_role || selectedTargetRole.value
+  selectedCity.value = task.target_city || selectedCity.value
+  statusMessage.value = task.error_message || getFailureMessage(task.failure_code) || getDefaultStatusMessage(flowStatus.value)
 }
 
 function normalizeTaskStatus(status: JobRecommendTask['status']): FlowStatus {
-  if (status === 'pending') return 'crawling'
   return status
 }
 
 function getFallbackProgress(status: JobRecommendTask['status']) {
-  if (status === 'success') return 100
+  if (status === 'success' || status === 'no_results') return 100
   if (status === 'matching') return 75
   if (status === 'crawling') return 45
+  if (status === 'pending') return 15
   return progress.value
 }
 
@@ -688,9 +1029,12 @@ async function loadRecommendationResults() {
     jobs.value = (response.data.items || []).map((job) => normalizeJob(job))
     total.value = response.data.total || 0
     extractedSkills.value = response.data.extracted_skills || extractedSkills.value
-    flowStatus.value = 'success'
+    searchKeywords.value = response.data.search_keywords || searchKeywords.value
+    flowStatus.value = response.data.total > 0 ? 'success' : 'no_results'
     progress.value = 100
-    statusMessage.value = '推荐岗位已生成'
+    statusMessage.value = response.data.total > 0
+      ? '推荐岗位已生成'
+      : getFailureMessage(failureCode.value) || '当前目标岗位和城市暂无精准岗位，请调整条件后重试'
   } catch (error: unknown) {
     flowStatus.value = 'failed'
     statusMessage.value = getErrorMessage(error, '加载推荐结果失败')
@@ -702,10 +1046,12 @@ async function loadRecommendationResults() {
 function resetRecommendationState() {
   clearLoginPolling()
   clearTaskPolling()
-  recommendationStartRequested.value = false
   loginSessionId.value = ''
   taskId.value = ''
   extractedSkills.value = []
+  searchKeywords.value = []
+  failureCode.value = null
+  Object.keys(crawlDiagnostics).forEach((key) => delete crawlDiagnostics[key])
   taskStats.totalFound = 0
   taskStats.totalSaved = 0
   taskStats.totalMatched = 0
@@ -715,6 +1061,21 @@ function resetRecommendationState() {
   jobs.value = []
   detailJob.value = null
   detailVisible.value = false
+  flowStatus.value = 'idle'
+  statusMessage.value = ''
+}
+
+function handleVisibilityChange() {
+  if (document.hidden) {
+    clearLoginPolling()
+    clearTaskPolling()
+    return
+  }
+  if (flowStatus.value === 'waiting_login' && loginSessionId.value) {
+    startLoginPolling()
+  } else if (['pending', 'crawling', 'matching'].includes(flowStatus.value) && taskId.value) {
+    startTaskPolling()
+  }
 }
 
 function getTimeValue(value?: string) {
@@ -793,13 +1154,18 @@ function openSource(job: JobItem) {
 }
 
 async function handleApply(job: JobItem) {
-  if (!currentResume.value) {
+  const selectedResume = currentResumeOption.value
+  if (!selectedResume) {
     ElMessage.warning('请先上传简历')
     return
   }
   applyingId.value = job.id
   try {
-    await jobApi.apply(job.id, { resume_id: currentResume.value.id })
+    await jobApi.apply(job.id, {
+      resume_id: selectedResume.resumeId,
+      resume_source: selectedResume.source,
+      resume_optimization_id: selectedResume.optimizationId,
+    })
     ElMessage.success('投递意向已记录')
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '记录投递意向失败'))
@@ -836,21 +1202,13 @@ function getMatchColor(score: number): string {
   return '#ef4444'
 }
 
-function getResumeStatusText(status: Resume['status']) {
-  const statusMap: Record<Resume['status'], string> = {
-    pending: '待解析',
-    analyzing: '解析中',
-    completed: '已完成',
-    failed: '解析失败',
-  }
-  return statusMap[status] || status
-}
-
 function getLoginStatusText(status: JobPlatform['login_status']) {
   const statusMap: Record<JobPlatform['login_status'], string> = {
     not_logged_in: '未登录',
+    waiting_login: '等待登录',
     logged_in: '已登录',
     expired: '已过期',
+    failed: '登录失败',
     unknown: '未知',
   }
   return statusMap[status] || status
@@ -864,18 +1222,34 @@ function getDefaultStatusMessage(status: FlowStatus) {
   const messageMap: Record<FlowStatus, string> = {
     idle: '等待选择平台',
     waiting_login: '等待招聘平台登录',
+    pending: '推荐任务已创建，等待执行',
     crawling: '正在采集岗位',
     matching: '正在计算匹配度',
     success: '推荐岗位已生成',
+    no_results: '当前条件暂无精准岗位',
     failed: '推荐任务失败',
     need_login: '登录态已失效',
   }
   return messageMap[status]
 }
 
+function getFailureMessage(code?: string | null) {
+  if (!code) return ''
+  const messages: Record<string, string> = {
+    no_exact_results: '源站没有找到当前岗位方向的精准结果，请调整目标岗位或城市后重试',
+    no_matching_jobs: '已采集到岗位，但没有符合当前岗位方向的结果，请调整目标岗位',
+    parse_failed: '招聘平台页面结构可能发生变化，岗位解析失败，请稍后重试',
+    crawl_failed: '岗位采集遇到网络、浏览器或源站异常，请重新开始',
+  }
+  return messages[code] || `推荐任务失败（${code}）`
+}
+
 function getErrorMessage(error: unknown, fallback: string) {
   if (error && typeof error === 'object') {
-    const response = (error as { response?: { data?: { message?: unknown } } }).response
+    const response = (error as { response?: { data?: { message?: unknown; detail?: unknown } } }).response
+    if (typeof response?.data?.detail === 'string') {
+      return response.data.detail
+    }
     if (typeof response?.data?.message === 'string') {
       return response.data.message
     }

@@ -210,7 +210,7 @@ const handleUpload = async () => {
     setTimeout(() => {
       uploading.value = false
       ElMessage.success({
-        message: '简历上传成功！正在跳转到详情页...',
+        message: response.data?.recommendation_refresh?.message || '简历上传成功！正在跳转到详情页...',
         duration: 2000
       })
 

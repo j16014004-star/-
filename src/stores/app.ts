@@ -11,7 +11,8 @@ export const useAppStore = defineStore('app', () => {
     return 'light'
   }
 
-  const sidebarCollapsed = ref(false)
+  const storedSidebarExpanded = localStorage.getItem('sidebarExpanded')
+  const sidebarCollapsed = ref(storedSidebarExpanded === null ? false : storedSidebarExpanded !== 'true')
   const user = ref({
     name: '用户',
     avatar: '',

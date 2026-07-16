@@ -55,10 +55,11 @@
         </div>
 
         <el-card class="w-full shadow-xl border-0" body-style="padding: 40px">
-          <h2 class="text-2xl font-bold text-gray-800 mb-2">欢迎回来</h2>
-          <p class="text-gray-500 mb-8">登录您的账号以继续</p>
+          <h2 class="text-2xl font-bold text-gray-800 mb-2">{{ twoFactorToken ? '两步验证' : '欢迎回来' }}</h2>
+          <p class="text-gray-500 mb-8">{{ twoFactorToken ? '请输入身份验证器动态码或恢复码' : '登录您的账号以继续' }}</p>
 
           <el-form
+            v-if="!twoFactorToken"
             ref="formRef"
             :model="form"
             :rules="rules"
@@ -66,10 +67,10 @@
             label-position="top"
             @keyup.enter="handleLogin"
           >
-            <el-form-item label="用户名" prop="username">
+            <el-form-item label="用户名 / 邮箱 / 手机号" prop="username">
               <el-input
                 v-model="form.username"
-                placeholder="请输入用户名"
+                placeholder="请输入用户名、邮箱或手机号"
                 :prefix-icon="User"
               />
             </el-form-item>
@@ -95,6 +96,14 @@
                 {{ loading ? '登录中...' : '登录' }}
               </el-button>
             </el-form-item>
+          </el-form>
+
+          <el-form v-else size="large" label-position="top" @keyup.enter="handleTwoFactorLogin">
+            <el-form-item label="验证码">
+              <el-input v-model="twoFactorCode" maxlength="12" autocomplete="one-time-code" placeholder="6 位动态码或恢复码" />
+            </el-form-item>
+            <el-button type="primary" class="w-full" :loading="loading" @click="handleTwoFactorLogin">验证并登录</el-button>
+            <el-button class="w-full mt-3" @click="cancelTwoFactor">返回账号登录</el-button>
           </el-form>
 
           <div class="text-center mt-6">
@@ -125,6 +134,8 @@ import { storage, TOKEN_KEY, USER_KEY } from '@/utils/storage'
 const router = useRouter()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
+const twoFactorToken = ref('')
+const twoFactorCode = ref('')
 
 const form = reactive({
   username: '',
@@ -134,7 +145,7 @@ const form = reactive({
 const rules: FormRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '用户名长度在2-20个字符', trigger: 'blur' }
+    { min: 2, max: 100, message: '账号长度在 2～100 个字符', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
@@ -157,13 +168,27 @@ const handleLogin = async () => {
       password: form.password
     })
 
-    // 保存 token 和用户信息到 localStorage
-    storage.set(TOKEN_KEY, response.data.access_token)
-    storage.set('refresh_token', response.data.refresh_token)
-    storage.set('token_type', response.data.token_type)
-    storage.set('expires_in', response.data.expires_in)
-    storage.set('token_expires_at', Date.now() + response.data.expires_in * 1000)
-    storage.set(USER_KEY, response.data.user)
+    if ('requires_two_factor' in response.data) {
+      twoFactorToken.value = response.data.two_factor_token
+      twoFactorCode.value = ''
+      return
+    }
+
+    completeLogin(response.data)
+  } catch (error: any) {
+    handleLoginError(error)
+  } finally {
+    loading.value = false
+  }
+}
+
+const completeLogin = (data: import('@/api/types/auth').AuthenticatedLoginResponse) => {
+    storage.set(TOKEN_KEY, data.access_token)
+    storage.set('refresh_token', data.refresh_token)
+    storage.set('token_type', data.token_type)
+    storage.set('expires_in', data.expires_in)
+    storage.set('token_expires_at', Date.now() + data.expires_in * 1000)
+    storage.set(USER_KEY, data.user)
 
     ElMessage.success({
       message: `欢迎回来，${form.username}！`,
@@ -171,13 +196,15 @@ const handleLogin = async () => {
     })
 
     router.push('/')
-  } catch (error: any) {
+}
+
+const handleLoginError = (error: any) => {
     const status = error.response?.status
     const message = error.response?.data?.message || error.message
 
     switch (status) {
       case 401:
-        ElMessage.error('用户名或密码错误')
+        ElMessage.error(twoFactorToken.value ? '动态验证码或恢复码错误' : '用户名或密码错误')
         break
       case 403:
         ElMessage.error('账号已被禁用，请联系管理员')
@@ -191,9 +218,24 @@ const handleLogin = async () => {
       default:
         ElMessage.error(message || '登录失败，请检查网络连接')
     }
+}
+
+const handleTwoFactorLogin = async () => {
+  if (!twoFactorCode.value.trim()) return ElMessage.warning('请输入验证码')
+  loading.value = true
+  try {
+    const response = await authApi.verifyTwoFactor({ two_factor_token: twoFactorToken.value, code: twoFactorCode.value.trim() })
+    completeLogin(response.data)
+  } catch (error: any) {
+    handleLoginError(error)
   } finally {
     loading.value = false
   }
+}
+
+const cancelTwoFactor = () => {
+  twoFactorToken.value = ''
+  twoFactorCode.value = ''
 }
 </script>
 

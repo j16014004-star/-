@@ -10,7 +10,7 @@ export interface RegisterRequest {
   verification_code?: string
 }
 
-export interface LoginResponse {
+export interface AuthenticatedLoginResponse {
   access_token: string
   refresh_token: string
   token_type: string
@@ -23,6 +23,19 @@ export interface LoginResponse {
     phone?: string | null
     status: string
   }
+}
+
+export interface TwoFactorRequiredResponse {
+  requires_two_factor: true
+  two_factor_token: string
+  expires_in: number
+}
+
+export type LoginResponse = AuthenticatedLoginResponse | TwoFactorRequiredResponse
+
+export interface TwoFactorLoginRequest {
+  two_factor_token: string
+  code: string
 }
 
 // 刷新 Token 响应

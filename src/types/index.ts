@@ -47,6 +47,11 @@ export interface Resume {
   chunks?: ResumeTextChunk[]
   structured_data?: ResumeContent
   content?: ResumeContent
+  recommendation_refresh?: {
+    status: string
+    task_id?: string | null
+    message: string
+  } | null
 }
 
 export interface ResumeTextChunk {

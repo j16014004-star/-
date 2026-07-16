@@ -1,10 +1,19 @@
 import request from '@/utils/request'
-import type { LoginRequest, RegisterRequest, LoginResponse, RefreshTokenResponse } from './types/auth'
+import type { AxiosResponse } from 'axios'
+import type { AuthenticatedLoginResponse, LoginRequest, RegisterRequest, LoginResponse, RefreshTokenResponse, TwoFactorLoginRequest } from './types/auth'
 import type { ApiResponse, UserInfo } from '@/types'
+
+function asApiPromise<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): Promise<ApiResponse<T>> {
+  return promise as unknown as Promise<ApiResponse<T>>
+}
 
 export const authApi = {
   login(data: LoginRequest) {
-    return request.post<ApiResponse<LoginResponse>>('/auth/login', data)
+    return asApiPromise(request.post<ApiResponse<LoginResponse>>('/auth/login', data))
+  },
+
+  verifyTwoFactor(data: TwoFactorLoginRequest) {
+    return asApiPromise(request.post<ApiResponse<AuthenticatedLoginResponse>>('/auth/login/two-factor', data))
   },
 
   register(data: RegisterRequest) {

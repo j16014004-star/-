@@ -9,6 +9,7 @@ import type {
   JobRecommendResults,
   JobRecommendTask,
   JobSearchParams,
+  CurrentJobRecommendTask,
   PlatformLoginSession,
   PlatformLoginStatus,
   StartPlatformLoginParams,
@@ -40,6 +41,15 @@ export const jobApi = {
 
   getRecommendationTask(taskId: string) {
     return asApiPromise(request.get<ApiResponse<JobRecommendTask>>(`/jobs/recommend/tasks/${taskId}`))
+  },
+
+  getCurrentRecommendation(params?: {
+    resume_id?: number
+    resume_source?: 'original' | 'optimized'
+    resume_optimization_id?: number
+    source?: string
+  }) {
+    return asApiPromise(request.get<ApiResponse<CurrentJobRecommendTask>>('/jobs/recommend/current', { params }))
   },
 
   getRecommendationResults(taskId: string, params?: JobRecommendResultParams) {
