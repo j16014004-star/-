@@ -195,9 +195,36 @@
             <el-tag type="warning" effect="plain">建议处理后再保存</el-tag>
           </div>
         </template>
-        <ul class="space-y-2 text-sm text-gray-600">
-          <li v-for="question in confirmationQuestions" :key="question">• {{ question }}</li>
-        </ul>
+        <div class="space-y-4">
+          <div
+            v-for="(question, index) in confirmationQuestions"
+            :key="question"
+            class="rounded-xl border border-orange-100 bg-orange-50/40 p-4"
+          >
+            <div class="mb-3 flex items-start gap-2 text-sm leading-6 text-gray-700">
+              <span class="mt-1 h-2 w-2 flex-shrink-0 rounded-full bg-orange-400"></span>
+              <span>{{ question }}</span>
+            </div>
+            <el-input
+              v-model="questionConfirmations[question]"
+              type="textarea"
+              :rows="2"
+              maxlength="800"
+              show-word-limit
+              placeholder="请确认这个问题的真实信息，例如：已部署上线，GitHub链接是 https://..."
+            />
+            <div class="mt-3 flex justify-end">
+              <el-button
+                type="primary"
+                plain
+                :loading="confirmingQuestionIndex === index"
+                @click="handleConfirmQuestion(question, index)"
+              >
+                确认并让 AI 补全
+              </el-button>
+            </div>
+          </div>
+        </div>
         <div class="mt-5 flex flex-wrap items-center gap-3">
           <el-button type="primary" plain :loading="applyingAiConfirmation" @click="handleAiFillConfirmation">
             <el-icon class="mr-1"><MagicStick /></el-icon>
@@ -415,9 +442,12 @@ const dismissingConfirmation = ref(false)
 const savingOptimization = ref(false)
 const manualDialogVisible = ref(false)
 const manualConfirmations = ref<string[]>([])
+const questionConfirmations = ref<Record<string, string>>({})
+const confirmingQuestionIndex = ref<number | null>(null)
 const confirmationPreview = ref<ResumeOptimizationConfirmationPreview | null>(null)
 const confirmationPreviewType = ref<'ai' | 'manual'>('ai')
 const confirmationPreviewQuestions = ref<string[]>([])
+const confirmationPreviewConfirmedAnswers = ref<Array<{ question: string; answer: string }>>([])
 const aiFeedbackDialogVisible = ref(false)
 const aiFeedback = ref('')
 const saveConfirmVisible = ref(false)
@@ -570,30 +600,61 @@ const requireOptimizationId = () => {
 }
 
 const handleAiFillConfirmation = async () => {
-  await createAiPreview()
+  await createAiPreview({
+    questions: confirmationQuestions.value,
+  })
 }
 
-const createAiPreview = async (feedback = '') => {
+const createAiPreview = async (options: {
+  questions?: string[]
+  confirmedAnswers?: Array<{ question: string; answer: string }>
+  feedback?: string
+} = {}) => {
   const optimizationId = requireOptimizationId()
   if (!optimizationId) return
+  const questions = options.questions?.length
+    ? options.questions
+    : confirmationQuestions.value
+  const confirmedAnswers = (options.confirmedAnswers || []).map(item => ({ ...item }))
   applyingAiConfirmation.value = true
   try {
     const response = await resumeApi.previewAiConfirmation({
       resume_id: resumeId,
       optimization_id: optimizationId,
       optimized_content: optimizedContent.value,
-      confirmation_questions: confirmationQuestions.value,
-      feedback: feedback.trim() || undefined,
+      confirmation_questions: questions,
+      confirmed_answers: confirmedAnswers,
+      feedback: options.feedback?.trim() || undefined,
     })
     confirmationPreview.value = response.data
     confirmationPreviewType.value = 'ai'
-    confirmationPreviewQuestions.value = [...response.data.resolved_questions]
+    confirmationPreviewQuestions.value = response.data.resolved_questions?.length
+      ? [...response.data.resolved_questions]
+      : [...questions]
+    confirmationPreviewConfirmedAnswers.value = confirmedAnswers
     aiFeedbackDialogVisible.value = false
     ElMessage.success('AI 补全预览已生成，请确认是否采用')
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '生成 AI 补全预览失败'))
   } finally {
     applyingAiConfirmation.value = false
+  }
+}
+
+const handleConfirmQuestion = async (question: string, index: number) => {
+  const answer = questionConfirmations.value[question]?.trim()
+  if (!answer) {
+    ElMessage.warning('请先填写这条问题的确认内容')
+    return
+  }
+  confirmingQuestionIndex.value = index
+  try {
+    await createAiPreview({
+      questions: [question],
+      confirmedAnswers: [{ question, answer }],
+    })
+  } finally {
+    confirmingQuestionIndex.value = null
   }
 }
 
@@ -624,6 +685,7 @@ const handleManualFillConfirmation = async () => {
     confirmationPreview.value = response.data
     confirmationPreviewType.value = 'manual'
     confirmationPreviewQuestions.value = confirmations.map(item => item.question)
+    confirmationPreviewConfirmedAnswers.value = []
     manualDialogVisible.value = false
     ElMessage.success('手动补充预览已生成，请确认是否采用')
   } catch (error: unknown) {
@@ -636,6 +698,7 @@ const handleManualFillConfirmation = async () => {
 const clearConfirmationPreview = () => {
   confirmationPreview.value = null
   confirmationPreviewQuestions.value = []
+  confirmationPreviewConfirmedAnswers.value = []
 }
 
 const acceptConfirmationPreview = () => {
@@ -650,6 +713,9 @@ const acceptConfirmationPreview = () => {
     changes.value = mergeChanges(changes.value, preview.change_items)
   }
   confirmationQuestions.value = preview.remaining_questions || []
+  confirmationPreviewQuestions.value.forEach((question) => {
+    delete questionConfirmations.value[question]
+  })
   confirmationActions.value.push({
     type: confirmationPreviewType.value,
     title: confirmationPreviewType.value === 'ai' ? 'AI 补全到简历' : '手动填写后加入简历',
@@ -673,7 +739,11 @@ const regenerateAiPreview = async () => {
     ElMessage.warning('请填写不满意的原因或修改要求')
     return
   }
-  await createAiPreview(aiFeedback.value)
+  await createAiPreview({
+    questions: confirmationPreviewQuestions.value.length ? confirmationPreviewQuestions.value : confirmationQuestions.value,
+    confirmedAnswers: confirmationPreviewConfirmedAnswers.value,
+    feedback: aiFeedback.value,
+  })
 }
 
 const handleDismissConfirmation = async () => {
@@ -714,6 +784,15 @@ const handleSaveOptimization = async () => {
   if (!optimizationId) return
   if (!finalEditableContent.value.trim()) {
     ElMessage.warning('暂无可保存的优化内容')
+    return
+  }
+  const missingConfirmedChanges = changes.value.filter(change => (
+    change.evidence_source === 'user_confirmation'
+    && Boolean(change.optimized?.trim())
+    && !finalEditableContent.value.includes(change.optimized.trim())
+  ))
+  if (missingConfirmedChanges.length) {
+    ElMessage.error('最终简历缺少已采用的确认补充内容，请恢复补充内容后再保存')
     return
   }
 

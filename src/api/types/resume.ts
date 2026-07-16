@@ -15,6 +15,7 @@ export interface ResumeOptimizationContentParams {
 
 export interface ResumeOptimizationAiPreviewParams extends ResumeOptimizationContentParams {
   confirmation_questions: string[]
+  confirmed_answers?: ResumeOptimizationManualConfirmItem[]
   feedback?: string
 }
 
@@ -40,6 +41,7 @@ export interface ResumeOptimizationConfirmationPreview {
     optimized: string
     reason: string
     evidence?: string
+    evidence_source?: 'original_resume' | 'user_confirmation' | 'knowledge_base'
     requires_confirmation?: boolean
   }>
   has_changes: boolean

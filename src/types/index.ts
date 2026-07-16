@@ -119,6 +119,7 @@ export interface OptimizeChange {
   optimized: string
   reason: string
   evidence?: string
+  evidence_source?: 'original_resume' | 'user_confirmation' | 'knowledge_base'
   requires_confirmation?: boolean
 }
 

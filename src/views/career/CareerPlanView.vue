@@ -308,6 +308,9 @@
 import { computed, reactive, ref } from 'vue'
 import { Delete, Plus, TrendCharts, Upload } from '@element-plus/icons-vue'
 import { ElMessage, type FormInstance, type FormRules, type UploadRequestOptions } from 'element-plus'
+import { careerApi } from '@/api/career'
+import { aiApi } from '@/api/ai'
+import type { AITask } from '@/api/types/ai'
 import type { CareerPlan, CareerPlanningProfileParams, CareerProjectAttachment, CareerProjectInput } from '@/api/types/career'
 
 interface CareerProjectForm extends CareerProjectInput {
@@ -343,8 +346,6 @@ const generating = ref(false)
 const plan = ref<CareerPlan | null>(null)
 const taskProgress = ref(0)
 const generationStep = ref('正在准备职业规划任务')
-let localAttachmentId = 1000
-let localPlanId = 2000
 
 const skillOptions = [
   '沟通表达', '团队协作', '项目管理', 'Office', '数据分析', 'SQL', 'Python', 'Java',
@@ -400,30 +401,31 @@ const handleProjectUpload = async (index: number, options: UploadRequestOptions)
   project.uploadProgress = 0
   try {
     const file = options.file
-    project.uploadProgress = 35
-    const attachment: CareerProjectAttachment = {
-      id: ++localAttachmentId,
-      original_filename: file.name,
-      file_type: file.name.split('.').pop()?.toLowerCase() || 'file',
-      file_size: file.size,
-      status: 'completed',
-      error_message: null,
-    }
+    const response = await careerApi.uploadProjectFile(file, (percentage) => {
+      project.uploadProgress = percentage
+    })
+    const attachment = response.data
     project.attachments.push(attachment)
     project.file_ids.push(attachment.id)
     project.uploadProgress = 100
     options.onSuccess(attachment)
-    ElMessage.success('项目附件已添加')
+    ElMessage.success('项目附件上传成功')
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '项目附件添加失败'))
+    ElMessage.error(getErrorMessage(error, '项目附件上传失败'))
   } finally {
     project.uploading = false
   }
 }
 
 const removeAttachment = async (project: CareerProjectForm, fileId: number) => {
-  project.attachments = project.attachments.filter((file) => file.id !== fileId)
-  project.file_ids = project.file_ids.filter((id) => id !== fileId)
+  try {
+    await careerApi.deleteProjectFile(fileId)
+    project.attachments = project.attachments.filter((file) => file.id !== fileId)
+    project.file_ids = project.file_ids.filter((id) => id !== fileId)
+    ElMessage.success('项目附件已删除')
+  } catch (error: unknown) {
+    ElMessage.error(getErrorMessage(error, '项目附件删除失败'))
+  }
 }
 
 const validateProjects = () => {
@@ -475,13 +477,25 @@ const handleGenerate = async () => {
       projects,
     }
 
-    taskProgress.value = 35
-    generationStep.value = '正在分析岗位方向和能力差距'
-    await wait(300)
-    taskProgress.value = 70
-    generationStep.value = '正在生成学习路径和行动计划'
-    await wait(300)
-    plan.value = buildLocalCareerPlan(profile)
+    taskProgress.value = 15
+    generationStep.value = '正在创建职业规划档案'
+    const profileResponse = await careerApi.createProfile(profile)
+
+    taskProgress.value = 25
+    generationStep.value = '正在启动 AI 职业规划任务'
+    const planTaskResponse = await careerApi.createPlan({
+      profile_id: profileResponse.data.id,
+      preferred_target_role: profile.preferred_target_role,
+    })
+
+    const finishedTask = await pollCareerPlanTask(planTaskResponse.data.task_id)
+    const planId = finishedTask.result_id || planTaskResponse.data.plan_id
+    if (!planId) throw new Error('职业规划任务完成但未返回规划 ID')
+
+    taskProgress.value = 95
+    generationStep.value = '正在加载职业规划结果'
+    const planResponse = await careerApi.getPlan(planId)
+    plan.value = planResponse.data
     taskProgress.value = 100
     generationStep.value = '职业规划已生成'
     ElMessage.success('职业生涯规划已生成')
@@ -498,137 +512,41 @@ const priorityLabel = (priority: 'high' | 'medium' | 'low') => ({ high: '高', m
 
 const wait = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms))
 
-const educationLabels: Record<string, string> = {
-  high_school: '高中及以下',
-  college: '大专',
-  bachelor: '本科',
-  master: '硕士',
-  phd: '博士',
-}
-
-const experienceLabels: Record<string, string> = {
-  fresh: '应届生',
-  '0-1': '1年以内',
-  '1-3': '1-3年',
-  '3-5': '3-5年',
-  '5-10': '5-10年',
-  '10+': '10年以上',
-}
-
-const inferPrimaryRole = (profile: CareerPlanningProfileParams) => {
-  if (profile.preferred_target_role) return profile.preferred_target_role
-  const skillText = profile.skills.join(' ').toLowerCase()
-  if (skillText.includes('vue') || skillText.includes('react') || skillText.includes('typescript')) return '前端开发工程师'
-  if (skillText.includes('python') || skillText.includes('fastapi') || skillText.includes('java') || skillText.includes('go')) return '后端开发工程师'
-  if (skillText.includes('sql') || skillText.includes('数据')) return '数据分析师'
-  if (skillText.includes('产品')) return '产品经理'
-  return '应用开发工程师'
-}
-
-const buildLocalCareerPlan = (profile: CareerPlanningProfileParams): CareerPlan => {
-  const primaryRole = inferPrimaryRole(profile)
-  const strengths = profile.skills.slice(0, 4)
-  const hasProjects = profile.projects.length > 0
-  const now = new Date().toISOString()
-
-  return {
-    id: ++localPlanId,
-    profile_id: localPlanId,
-    career_profile_summary: {
-      current_stage: `${experienceLabels[profile.experience] || profile.experience} · ${educationLabels[profile.education] || profile.education}`,
-      core_strengths: strengths.length ? strengths : ['学习能力', '执行力'],
-      transferable_skills: ['问题分析', '沟通协作', '持续学习'],
-      main_weaknesses: [
-        hasProjects ? '项目成果需要进一步量化' : '缺少可展示项目经历',
-        '目标岗位能力证据需要更集中',
-      ],
-      summary: `结合你的教育背景、工作年限、技能标签和项目经历，建议先以“${primaryRole}”作为主线方向，围绕岗位能力补齐作品、表达和面试证据。`,
-    },
-    recommended_roles: [
-      {
-        role_name: primaryRole,
-        match_score: hasProjects ? 86 : 78,
-        priority: 1,
-        recommendation_reason: `该方向与你已填写的 ${profile.skills.slice(0, 5).join('、') || '基础能力'} 匹配度较高，适合作为当前阶段主目标。`,
-        matched_capabilities: strengths.length ? strengths : ['基础学习能力'],
-        missing_capabilities: ['项目结果量化', '岗位关键词表达', '面试案例沉淀'],
-        suitable_industries: ['互联网产品', '企业服务', 'AI应用'],
-        next_actions: ['整理目标岗位 JD 关键词', '补充一个可展示项目', '按目标岗位优化简历'],
-        is_long_term_direction: true,
-      },
-      {
-        role_name: primaryRole.includes('开发') ? '技术支持与解决方案工程师' : '项目助理/运营分析方向',
-        match_score: 72,
-        priority: 2,
-        recommendation_reason: '该方向更看重沟通、问题拆解和业务理解，可作为求职备选路线。',
-        matched_capabilities: ['沟通协作', '问题分析'],
-        missing_capabilities: ['业务案例表达', '方案沉淀能力'],
-        suitable_industries: ['软件服务', '数字化咨询'],
-        next_actions: ['准备问题排查案例', '练习方案讲解', '整理业务复盘材料'],
-        is_long_term_direction: false,
-      },
-    ],
-    career_goals: {
-      short_term: ['确定一个主目标岗位', '完成目标岗位能力清单', '整理已有项目和工作成果证据'],
-      medium_term: ['完成一个可展示项目或案例集', '补齐关键技能短板', '完成至少两轮模拟面试'],
-      long_term: ['形成稳定职业方向', '能独立负责完整模块或业务场景', '建立可持续学习和复盘机制'],
-    },
-    skill_gap_analysis: [
-      { skill: '岗位关键词表达', priority: 'high', current_level: '分散', target_level: '能围绕目标岗位组织简历和面试表达', reason: '这会直接影响简历筛选和面试沟通效率。' },
-      { skill: '项目成果量化', priority: 'high', current_level: hasProjects ? '有项目基础' : '待补充', target_level: '能说明职责、动作、结果和证据', reason: '项目证据是职业转化最关键的材料。' },
-      { skill: '系统化学习', priority: 'medium', current_level: '需要规划', target_level: `每周稳定投入 ${profile.weekly_learning_hours} 小时`, reason: '稳定投入比一次性学习更容易形成职业竞争力。' },
-    ],
-    learning_path: {
-      total_weeks: 12,
-      hours_per_week: profile.weekly_learning_hours,
-      stages: [
-        {
-          stage: '方向确认与材料梳理',
-          duration: '第1-3周',
-          goals: ['确认主目标岗位', '梳理已有技能和经历'],
-          topics: ['岗位能力拆解', '简历关键词', '项目表达'],
-          tasks: ['收集 10 个目标岗位 JD', '整理技能清单', '提炼工作经历亮点'],
-          practice_tasks: ['用 STAR 法重写一段项目经历'],
-          deliverables: ['目标岗位能力表', '经历证据清单'],
-          acceptance_criteria: ['能说明目标岗位核心职责', '能列出 3 个可证明能力的案例'],
-        },
-        {
-          stage: '能力补齐与项目建设',
-          duration: '第4-8周',
-          goals: ['补齐核心技能', '完成可展示项目或案例'],
-          topics: ['核心工具链', '业务场景拆解', '成果量化'],
-          tasks: ['完成一个小型作品项目', '补充测试/文档/部署说明'],
-          practice_tasks: ['为项目写 README 和复盘文档'],
-          deliverables: ['可展示项目', '项目说明文档'],
-          acceptance_criteria: ['项目能独立展示', '能讲清个人贡献和结果'],
-        },
-        {
-          stage: '求职准备与复盘',
-          duration: '第9-12周',
-          goals: ['完成求职材料', '提升面试表达'],
-          topics: ['简历优化', '项目问答', '模拟面试'],
-          tasks: ['生成目标岗位简历版本', '准备常见面试问题', '每周复盘投递反馈'],
-          practice_tasks: ['完成两次模拟面试'],
-          deliverables: ['目标岗位简历', '面试问答清单', '投递复盘表'],
-          acceptance_criteria: ['能在 5 分钟内讲清核心项目', '能根据反馈调整简历和方向'],
-        },
-      ],
-    },
-    action_plan: {
-      this_week: ['选择主目标岗位', '整理技能和项目证据', '收集目标岗位 JD'],
-      this_month: ['完成能力差距清单', '启动或完善一个作品项目', '输出第一版目标岗位简历'],
-      portfolio_projects: ['围绕真实业务问题做一个可展示项目', '把已有项目补充为案例集'],
-      resume_actions: ['突出目标岗位关键词', '用数据和结果描述项目贡献', '删除与目标方向弱相关的信息'],
-      review_points: ['第4周检查方向是否聚焦', '第8周检查项目是否可展示', '第12周复盘求职反馈'],
-    },
-    risks_and_alternatives: {
-      risks: ['目标岗位过多导致学习主线分散', '项目成果缺少量化证据'],
-      assumptions_to_confirm: [`每周能稳定投入 ${profile.weekly_learning_hours} 小时`, '目标岗位方向与真实兴趣一致'],
-      alternative_roles: ['技术支持工程师', '解决方案工程师', '运营分析方向'],
-      adjustment_advice: ['如果连续两周无法完成计划，应减少并行学习主题，优先保留一个主方向和一个作品项目。'],
-    },
-    created_at: now,
+const getTaskStepText = (task: AITask) => {
+  const statusMap: Record<AITask['status'], string> = {
+    pending: '职业规划任务已创建，等待 AI 处理',
+    preparing: '正在整理职业背景信息',
+    generating: '正在分析岗位方向和能力差距',
+    validating: '正在校验职业规划内容',
+    saving: '正在保存职业规划结果',
+    success: '职业规划已生成',
+    failed: '职业规划生成失败',
+    cancelled: '职业规划任务已取消',
   }
+  return statusMap[task.status]
+}
+
+const pollCareerPlanTask = async (taskId: string) => {
+  let latestTask: AITask | null = null
+  for (let attempt = 0; attempt < 120; attempt += 1) {
+    const response = await aiApi.getTask(taskId)
+    latestTask = response.data
+    taskProgress.value = Math.max(taskProgress.value, latestTask.progress || 0)
+    generationStep.value = getTaskStepText(latestTask)
+
+    if (latestTask.status === 'success') return latestTask
+    if (latestTask.status === 'failed') {
+      throw new Error(latestTask.error_message || '职业规划生成失败')
+    }
+    if (latestTask.status === 'cancelled') {
+      throw new Error(latestTask.error_message || '职业规划任务已取消')
+    }
+
+    const delay = Math.min(Math.max(latestTask.poll_after_seconds || 1, 1), 5) * 1000
+    await wait(delay)
+  }
+
+  throw new Error('职业规划生成超时，请稍后重试')
 }
 
 const formatFileSize = (bytes: number) => {
