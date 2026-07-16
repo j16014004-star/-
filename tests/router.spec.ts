@@ -27,7 +27,7 @@ describe('Router 配置', () => {
 
   it('包含所有主要业务路由名称', () => {
     const routeNames = router.getRoutes().map((r) => r.name as string)
-    const expected = ['login', 'register', 'dashboard', 'resume-list', 'resume-upload', 'resume-detail', 'resume-optimize', 'career', 'jobs', 'chat', 'agent', 'hr', 'interview', 'interview-room', 'interview-report', 'profile']
+    const expected = ['login', 'register', 'dashboard', 'resume-list', 'resume-upload', 'resume-detail', 'resume-optimize', 'career', 'career-check-in', 'career-assessment', 'jobs', 'chat', 'agent', 'hr', 'interview', 'interview-room', 'interview-report', 'profile']
     expected.forEach((name) => {
       expect(routeNames).toContain(name)
     })

@@ -5,7 +5,12 @@
       <p class="mt-1 text-sm text-gray-500">填写真实背景信息，由 AI 生成岗位方向、阶段目标和学习路径</p>
     </div>
 
-    <el-card class="mb-6 border-0" shadow="never">
+    <el-card v-if="restoringPlan" class="mb-6 border-0 py-16 text-center" shadow="never">
+      <el-icon class="is-loading text-4xl text-indigo-500"><TrendCharts /></el-icon>
+      <div class="mt-4 text-sm text-gray-500">正在加载你已确认的职业规划...</div>
+    </el-card>
+
+    <el-card v-if="!restoringPlan && planDecisionStatus !== 'accepted'" class="mb-6 border-0" shadow="never">
       <template #header>
         <div>
           <div class="font-semibold text-gray-800">个人背景信息</div>
@@ -164,9 +169,9 @@
       </el-form>
 
       <div class="mt-8 flex justify-center">
-        <el-button type="primary" size="large" :loading="generating" @click="handleGenerate">
+        <el-button type="primary" size="large" :loading="generating || restoringPlan" :disabled="restoringPlan" @click="handleGenerate">
           <el-icon class="mr-1"><TrendCharts /></el-icon>
-          {{ generating ? '正在生成职业生涯规划...' : '生成职业生涯规划' }}
+          {{ restoringPlan ? '正在加载已确认规划...' : generating ? '正在生成职业生涯规划...' : '生成职业生涯规划' }}
         </el-button>
       </div>
     </el-card>
@@ -300,14 +305,98 @@
           </el-card>
         </el-col>
       </el-row>
+
+      <el-card class="mb-6 border-0 plan-decision-card" shadow="never">
+        <template #header>
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div class="font-semibold text-gray-800">确认职业规划</div>
+              <div class="mt-1 text-xs text-gray-500">确认后会生成可执行的学习与求职打卡任务</div>
+            </div>
+            <el-tag v-if="planDecisionStatus === 'accepted'" type="success" effect="dark">已采纳</el-tag>
+            <el-tag v-else-if="planDecisionStatus === 'regenerating'" type="warning">正在重新生成</el-tag>
+            <el-tag v-else type="info">等待确认</el-tag>
+          </div>
+        </template>
+
+        <el-alert
+          v-if="planDecisionStatus === 'accepted'"
+          title="这份计划已正式启用，你可以前往“计划执行打卡”查看今天和本周需要完成的任务。"
+          type="success"
+          :closable="false"
+          show-icon
+        />
+        <p v-else class="text-sm leading-7 text-gray-600">
+          请先确认岗位方向、学习强度和阶段目标是否适合你。若不满意，请具体说明问题，AI 会结合你的反馈重新生成完整计划。
+        </p>
+
+        <div class="mt-5 flex flex-wrap gap-3">
+          <el-button
+            v-if="planDecisionStatus !== 'accepted'"
+            type="success"
+            size="large"
+            :loading="decisionSubmitting"
+            @click="handleAcceptPlan"
+          >
+            <el-icon class="mr-1"><CircleCheck /></el-icon>
+            确认采用并开始执行
+          </el-button>
+          <el-button
+            v-if="planDecisionStatus !== 'accepted'"
+            size="large"
+            :disabled="decisionSubmitting || generating"
+            @click="feedbackDialogVisible = true"
+          >
+            <el-icon class="mr-1"><Refresh /></el-icon>
+            不满意，反馈后重新生成
+          </el-button>
+          <el-button v-else type="primary" size="large" @click="router.push('/career/check-in')">
+            前往计划执行打卡
+          </el-button>
+        </div>
+      </el-card>
     </template>
+
+    <el-dialog v-model="feedbackDialogVisible" title="告诉 AI 这份计划哪里不合适" width="min(620px, 92vw)" destroy-on-close>
+      <el-alert
+        title="反馈越具体，重新生成的计划越符合你的实际情况。"
+        type="info"
+        :closable="false"
+        class="mb-4"
+      />
+      <div class="mb-4">
+        <div class="mb-2 text-sm font-medium text-gray-700">希望重点调整（可多选）</div>
+        <el-checkbox-group v-model="regenerateFocusAreas">
+          <el-checkbox-button label="target_role">岗位方向</el-checkbox-button>
+          <el-checkbox-button label="learning_intensity">学习强度</el-checkbox-button>
+          <el-checkbox-button label="learning_path">学习路径</el-checkbox-button>
+          <el-checkbox-button label="project_tasks">项目任务</el-checkbox-button>
+          <el-checkbox-button label="job_search">求职安排</el-checkbox-button>
+        </el-checkbox-group>
+      </div>
+      <el-input
+        v-model="regenerateFeedback"
+        type="textarea"
+        :rows="6"
+        maxlength="1000"
+        show-word-limit
+        placeholder="例如：每周只有 5 小时，当前计划任务太多；希望先强化 FastAPI 和数据库，再学习部署；暂时不考虑数据分析岗位。"
+      />
+      <template #footer>
+        <el-button :disabled="decisionSubmitting" @click="feedbackDialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="decisionSubmitting" @click="handleRegeneratePlan">
+          提交反馈并重新生成
+        </el-button>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref } from 'vue'
-import { Delete, Plus, TrendCharts, Upload } from '@element-plus/icons-vue'
-import { ElMessage, type FormInstance, type FormRules, type UploadRequestOptions } from 'element-plus'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { CircleCheck, Delete, Plus, Refresh, TrendCharts, Upload } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules, type UploadRequestOptions } from 'element-plus'
 import { careerApi } from '@/api/career'
 import { aiApi } from '@/api/ai'
 import type { AITask } from '@/api/types/ai'
@@ -342,10 +431,17 @@ const createProject = (): CareerProjectForm => ({
 })
 
 const formRef = ref<FormInstance>()
+const router = useRouter()
 const generating = ref(false)
+const restoringPlan = ref(true)
 const plan = ref<CareerPlan | null>(null)
 const taskProgress = ref(0)
 const generationStep = ref('正在准备职业规划任务')
+const planDecisionStatus = ref<'draft' | 'accepted' | 'regenerating'>('draft')
+const decisionSubmitting = ref(false)
+const feedbackDialogVisible = ref(false)
+const regenerateFeedback = ref('')
+const regenerateFocusAreas = ref<string[]>([])
 
 const skillOptions = [
   '沟通表达', '团队协作', '项目管理', 'Office', '数据分析', 'SQL', 'Python', 'Java',
@@ -457,6 +553,7 @@ const handleGenerate = async () => {
   taskProgress.value = 5
   generationStep.value = '正在整理职业背景信息'
   plan.value = null
+  planDecisionStatus.value = 'draft'
   try {
     const projects = form.projects
       .filter((project) => project.name.trim() || project.description.trim() || project.role.trim() || project.file_ids.length)
@@ -505,6 +602,67 @@ const handleGenerate = async () => {
     ElMessage.error(getErrorMessage(error, '生成职业生涯规划失败，请稍后重试'))
   } finally {
     generating.value = false
+  }
+}
+
+const handleAcceptPlan = async () => {
+  if (!plan.value || decisionSubmitting.value) return
+  try {
+    await ElMessageBox.confirm(
+      '确认后，系统会按照这份职业规划生成每日和每周执行任务。',
+      '确认采用当前计划',
+      { confirmButtonText: '确认采用', cancelButtonText: '再看看', type: 'success' },
+    )
+    decisionSubmitting.value = true
+    await careerApi.acceptPlan(plan.value.id)
+    planDecisionStatus.value = 'accepted'
+    ElMessage.success('计划已采用，执行打卡任务已生成')
+  } catch (error: unknown) {
+    if (error === 'cancel' || error === 'close') return
+    ElMessage.error(getErrorMessage(error, '确认计划失败，请稍后重试'))
+  } finally {
+    decisionSubmitting.value = false
+  }
+}
+
+const handleRegeneratePlan = async () => {
+  if (!plan.value || decisionSubmitting.value) return
+  const feedback = regenerateFeedback.value.trim()
+  if (feedback.length < 10) {
+    ElMessage.warning('请至少填写 10 个字，具体说明计划哪里不合适')
+    return
+  }
+
+  decisionSubmitting.value = true
+  planDecisionStatus.value = 'regenerating'
+  taskProgress.value = 10
+  generationStep.value = '正在提交你的调整意见'
+  try {
+    const response = await careerApi.regeneratePlan(plan.value.id, {
+      feedback,
+      focus_areas: regenerateFocusAreas.value.length ? regenerateFocusAreas.value : undefined,
+    })
+    feedbackDialogVisible.value = false
+    generating.value = true
+    const finishedTask = await pollCareerPlanTask(response.data.task_id)
+    const newPlanId = finishedTask.result_id || response.data.plan_id
+    if (!newPlanId) throw new Error('重新生成完成但未返回新的规划 ID')
+
+    generationStep.value = '正在加载调整后的职业规划'
+    const planResponse = await careerApi.getPlan(newPlanId)
+    plan.value = planResponse.data
+    planDecisionStatus.value = 'draft'
+    taskProgress.value = 100
+    regenerateFeedback.value = ''
+    regenerateFocusAreas.value = []
+    ElMessage.success('AI 已根据你的反馈重新生成职业规划，请再次确认')
+  } catch (error: unknown) {
+    planDecisionStatus.value = 'draft'
+    taskProgress.value = 0
+    ElMessage.error(getErrorMessage(error, '重新生成职业规划失败，请稍后重试'))
+  } finally {
+    generating.value = false
+    decisionSubmitting.value = false
   }
 }
 
@@ -561,6 +719,28 @@ const getErrorMessage = (error: unknown, fallback: string) => {
   const message = (error as { response?: { data?: { message?: unknown } } })?.response?.data?.message
   return typeof message === 'string' ? message : fallback
 }
+
+const restoreAcceptedPlan = async () => {
+  try {
+    const executionResponse = await careerApi.getCurrentExecution()
+    const planResponse = await careerApi.getPlan(executionResponse.data.career_plan_id)
+    plan.value = planResponse.data
+    planDecisionStatus.value = 'accepted'
+    taskProgress.value = 100
+    generationStep.value = '已加载当前执行中的职业规划'
+  } catch (error: unknown) {
+    const status = (error as { response?: { status?: number } })?.response?.status
+    if (status !== 404) {
+      ElMessage.error(getErrorMessage(error, '加载已确认的职业规划失败'))
+    }
+  } finally {
+    restoringPlan.value = false
+  }
+}
+
+onMounted(() => {
+  void restoreAcceptedPlan()
+})
 </script>
 
 <style scoped>
@@ -571,5 +751,10 @@ const getErrorMessage = (error: unknown, fallback: string) => {
 :deep(.el-button--primary) {
   border-radius: 10px;
   font-weight: 500;
+}
+
+.plan-decision-card {
+  border: 1px solid #c7d2fe !important;
+  background: linear-gradient(135deg, #ffffff 0%, #eef2ff 100%);
 }
 </style>

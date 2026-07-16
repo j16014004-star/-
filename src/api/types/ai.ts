@@ -8,7 +8,12 @@ export type AITaskStatus =
   | 'failed'
   | 'cancelled'
 
-export type AITaskType = 'resume_optimization' | 'career_plan'
+export type AITaskType =
+  | 'resume_optimization'
+  | 'career_plan'
+  | 'career_plan_question'
+  | 'career_stage_assessment'
+  | 'career_stage_assessment_evaluation'
 
 export interface AITask {
   task_id: string

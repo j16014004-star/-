@@ -65,6 +65,19 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '职业规划', icon: 'TrendCharts' },
       },
       {
+        path: 'career/check-in',
+        name: 'career-check-in',
+        component: () => import('@/views/career/CareerCheckinView.vue'),
+        meta: { title: '计划执行打卡', icon: 'Calendar' },
+      },
+      {
+        path: 'career/check-in/assessment/:id',
+        name: 'career-assessment',
+        component: () => import('@/views/career/CareerAssessmentView.vue'),
+        meta: { title: '阶段考核', icon: 'DocumentChecked' },
+        props: true,
+      },
+      {
         path: 'jobs',
         name: 'jobs',
         component: () => import('@/views/job/JobListView.vue'),
