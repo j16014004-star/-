@@ -18,6 +18,8 @@ from app.routers.job_platforms import router as job_platforms_router
 from app.routers.ai_tasks import router as ai_tasks_router
 from app.routers.resume_optimizations import router as resume_optimizations_router
 from app.routers.resume_optimizations import saved_router as saved_resume_optimizations_router
+from app.routers.career_plans import plan_router as career_plans_router
+from app.routers.career_plans import profile_router as career_profiles_router
 
 
 @asynccontextmanager
@@ -75,3 +77,5 @@ app.include_router(job_platforms_router)
 app.include_router(ai_tasks_router)
 app.include_router(resume_optimizations_router)
 app.include_router(saved_resume_optimizations_router)
+app.include_router(career_profiles_router)
+app.include_router(career_plans_router)

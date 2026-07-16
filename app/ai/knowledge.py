@@ -107,22 +107,39 @@ def write_processed_chunks(chunks: list[KnowledgeChunk], processed_dir: str | Pa
     return target
 
 
-class ResumeKnowledgeRetriever:
-    def __init__(self, gateway: TencentMaaSModelGateway | None = None) -> None:
+class BaseKnowledgeRetriever:
+    def __init__(
+        self,
+        *,
+        source_dir: str | Path,
+        collection_name: str,
+        gateway: TencentMaaSModelGateway | None = None,
+    ) -> None:
+        self.source_dir = source_dir
+        self.collection_name = collection_name
         self.gateway = gateway or TencentMaaSModelGateway()
+        self.last_source = "not_run"
+        self.last_error: str | None = None
 
     async def retrieve(self, query: str, *, top_k: int | None = None) -> list[KnowledgeChunk]:
         limit = max(1, top_k or settings.AI_RAG_TOP_K)
         if settings.QDRANT_ENABLED:
             try:
-                return await self._retrieve_qdrant(query, limit)
-            except Exception:
-                pass
+                chunks = await self._retrieve_qdrant(query, limit)
+                self.last_source = "qdrant_vector"
+                self.last_error = None
+                return chunks
+            except Exception as exc:
+                self.last_source = "local_keyword_fallback"
+                self.last_error = f"Qdrant retrieval failed: {type(exc).__name__}"
+        else:
+            self.last_source = "local_keyword"
+            self.last_error = None
         return await asyncio.to_thread(self._retrieve_local, query, limit)
 
     def _retrieve_local(self, query: str, limit: int) -> list[KnowledgeChunk]:
         query_terms = _search_terms(query)
-        chunks = load_knowledge_chunks(settings.RESUME_OPTIMIZATION_KB_SOURCE_DIR)
+        chunks = load_knowledge_chunks(self.source_dir)
         for chunk in chunks:
             chunk_terms = _search_terms(f'{chunk.title} {chunk.section} {chunk.content}')
             overlap = len(query_terms & chunk_terms)
@@ -135,43 +152,94 @@ class ResumeKnowledgeRetriever:
     async def _retrieve_qdrant(self, query: str, limit: int) -> list[KnowledgeChunk]:
         vector = await self.gateway.embed_text(query)
         client = _create_qdrant_client()
-        response = await client.query_points(
-            collection_name=settings.QDRANT_RESUME_COLLECTION,
-            query=vector,
-            limit=limit,
-            with_payload=True,
-        )
-        chunks: list[KnowledgeChunk] = []
-        for point in response.points:
-            payload = point.payload or {}
-            chunks.append(
-                KnowledgeChunk(
-                    id=str(payload.get('chunk_id') or point.id),
-                    document_id=str(payload.get('document_id') or ''),
-                    title=str(payload.get('title') or ''),
-                    section=str(payload.get('section') or ''),
-                    content=str(payload.get('content') or ''),
-                    source_file=str(payload.get('source_file') or ''),
-                    version=str(payload.get('version') or ''),
-                    score=float(point.score or 0),
-                )
+        try:
+            response = await client.query_points(
+                collection_name=self.collection_name,
+                query=vector,
+                limit=limit,
+                with_payload=True,
             )
-        await client.close()
-        return chunks
+            chunks: list[KnowledgeChunk] = []
+            for point in response.points:
+                payload = point.payload or {}
+                chunks.append(
+                    KnowledgeChunk(
+                        id=str(payload.get('chunk_id') or point.id),
+                        document_id=str(payload.get('document_id') or ''),
+                        title=str(payload.get('title') or ''),
+                        section=str(payload.get('section') or ''),
+                        content=str(payload.get('content') or ''),
+                        source_file=str(payload.get('source_file') or ''),
+                        version=str(payload.get('version') or ''),
+                        score=float(point.score or 0),
+                    )
+                )
+            return chunks
+        finally:
+            await client.close()
+
+
+class ResumeKnowledgeRetriever(BaseKnowledgeRetriever):
+    def __init__(self, gateway: TencentMaaSModelGateway | None = None) -> None:
+        super().__init__(
+            source_dir=settings.RESUME_OPTIMIZATION_KB_SOURCE_DIR,
+            collection_name=settings.QDRANT_RESUME_COLLECTION,
+            gateway=gateway,
+        )
+
+
+class CareerKnowledgeRetriever(BaseKnowledgeRetriever):
+    def __init__(self, gateway: TencentMaaSModelGateway | None = None) -> None:
+        super().__init__(
+            source_dir=settings.CAREER_PLANNING_KB_SOURCE_DIR,
+            collection_name=settings.QDRANT_CAREER_COLLECTION,
+            gateway=gateway,
+        )
 
 
 async def ingest_resume_knowledge_to_qdrant(
     gateway: TencentMaaSModelGateway | None = None,
 ) -> int:
+    return await ingest_knowledge_to_qdrant(
+        source_dir=settings.RESUME_OPTIMIZATION_KB_SOURCE_DIR,
+        processed_dir=settings.RESUME_OPTIMIZATION_KB_PROCESSED_DIR,
+        collection_name=settings.QDRANT_RESUME_COLLECTION,
+        knowledge_base='resume_optimization',
+        gateway=gateway,
+    )
+
+
+async def ingest_career_knowledge_to_qdrant(
+    gateway: TencentMaaSModelGateway | None = None,
+) -> int:
+    return await ingest_knowledge_to_qdrant(
+        source_dir=settings.CAREER_PLANNING_KB_SOURCE_DIR,
+        processed_dir=settings.CAREER_PLANNING_KB_PROCESSED_DIR,
+        collection_name=settings.QDRANT_CAREER_COLLECTION,
+        knowledge_base='career_planning',
+        gateway=gateway,
+    )
+
+
+async def ingest_knowledge_to_qdrant(
+    *,
+    source_dir: str | Path,
+    processed_dir: str | Path,
+    collection_name: str,
+    knowledge_base: str,
+    gateway: TencentMaaSModelGateway | None = None,
+) -> int:
     from qdrant_client import models
 
     model_gateway = gateway or TencentMaaSModelGateway()
-    chunks = load_knowledge_chunks(settings.RESUME_OPTIMIZATION_KB_SOURCE_DIR)
-    write_processed_chunks(chunks, settings.RESUME_OPTIMIZATION_KB_PROCESSED_DIR)
+    chunks = load_knowledge_chunks(source_dir)
+    write_processed_chunks(chunks, processed_dir)
+    if not settings.QDRANT_ENABLED:
+        return len(chunks)
     client = _create_qdrant_client()
-    if not await client.collection_exists(settings.QDRANT_RESUME_COLLECTION):
+    if not await client.collection_exists(collection_name):
         await client.create_collection(
-            collection_name=settings.QDRANT_RESUME_COLLECTION,
+            collection_name=collection_name,
             vectors_config=models.VectorParams(
                 size=settings.TENCENT_MAAS_EMBEDDING_DIMENSION,
                 distance=models.Distance.COSINE,
@@ -190,16 +258,22 @@ async def ingest_resume_knowledge_to_qdrant(
                 'content': chunk.content,
                 'source_file': chunk.source_file,
                 'version': chunk.version,
-                'knowledge_base': 'resume_optimization',
+                'knowledge_base': knowledge_base,
                 'status': 'active',
             },
         )
         await client.upsert(
-            collection_name=settings.QDRANT_RESUME_COLLECTION,
+            collection_name=collection_name,
             points=[point],
             wait=True,
         )
     await client.close()
+    return len(chunks)
+
+
+def prepare_career_knowledge_chunks() -> int:
+    chunks = load_knowledge_chunks(settings.CAREER_PLANNING_KB_SOURCE_DIR)
+    write_processed_chunks(chunks, settings.CAREER_PLANNING_KB_PROCESSED_DIR)
     return len(chunks)
 
 

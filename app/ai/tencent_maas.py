@@ -39,11 +39,12 @@ class TencentMaaSModelGateway:
         *,
         system_prompt: str,
         user_prompt: str,
+        model_name: str | None = None,
         max_tokens: int | None = None,
     ) -> TextGenerationResult:
         output_tokens = max(1, min(max_tokens or settings.AI_MAX_OUTPUT_TOKENS, settings.AI_MAX_OUTPUT_TOKENS))
         payload = {
-            'model': settings.RESUME_OPTIMIZATION_MODEL,
+            'model': model_name or settings.RESUME_OPTIMIZATION_MODEL,
             'messages': [
                 {'role': 'system', 'content': system_prompt},
                 {'role': 'user', 'content': user_prompt},

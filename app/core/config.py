@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     AI_RAG_CHUNK_OVERLAP: int = 100
     AI_EMBEDDING_BATCH_SIZE: int = 1
     AI_MAX_RESUME_CHARS: int = 12000
-    AI_PROMPT_VERSION: str = 'resume-opt-v3'
+    AI_PROMPT_VERSION: str = 'resume-opt-v4'
     RESUME_OPTIMIZATION_KB_SOURCE_DIR: str = './knowledge_base/resume_optimization/source'
     RESUME_OPTIMIZATION_KB_PROCESSED_DIR: str = './knowledge_base/resume_optimization/processed'
     CAREER_PLANNING_KB_SOURCE_DIR: str = './knowledge_base/career_planning/source'

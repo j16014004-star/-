@@ -36,15 +36,40 @@ class ResumeOptimizationRequest(BaseModel):
         return self
 
 
-class ConfirmationAIApplyRequest(BaseModel):
-    optimized_content: str = Field(min_length=1, max_length=50000)
-    confirmation_questions: list[str] = Field(default_factory=list, max_length=30)
-    feedback: str | None = Field(default=None, max_length=2000)
-
-
 class ManualConfirmationItem(BaseModel):
     question: str = Field(min_length=1, max_length=1000)
     answer: str = Field(min_length=1, max_length=4000)
+
+
+class ConfirmationAIApplyRequest(BaseModel):
+    optimized_content: str = Field(min_length=1, max_length=50000)
+    confirmation_questions: list[str] = Field(default_factory=list, max_length=30)
+    confirmed_answers: list[ManualConfirmationItem] = Field(default_factory=list, max_length=30)
+    feedback: str | None = Field(default=None, max_length=2000)
+
+    @model_validator(mode='after')
+    def validate_confirmed_answers(self):
+        self.confirmation_questions = list(dict.fromkeys(
+            question.strip() for question in self.confirmation_questions if question.strip()
+        ))
+        question_set = set(self.confirmation_questions)
+        seen: set[str] = set()
+        normalized_answers: list[ManualConfirmationItem] = []
+        for item in self.confirmed_answers:
+            question = item.question.strip()
+            if question not in question_set:
+                raise ValueError('confirmed_answers 中的问题必须存在于 confirmation_questions')
+            if question in seen:
+                raise ValueError('同一个确认问题不能重复提交答案')
+            seen.add(question)
+            normalized_answers.append(ManualConfirmationItem(
+                question=question,
+                answer=item.answer.strip(),
+            ))
+        self.confirmed_answers = normalized_answers
+        if self.feedback is not None:
+            self.feedback = self.feedback.strip() or None
+        return self
 
 
 class ConfirmationManualApplyRequest(BaseModel):
@@ -98,6 +123,7 @@ class ResumeChangeItem(BaseModel):
     optimized: str = Field(min_length=1, max_length=4000)
     reason: str = Field(min_length=1, max_length=1000)
     evidence: str = Field(min_length=1, max_length=2000)
+    evidence_source: Literal['original_resume', 'user_confirmation', 'knowledge_base'] = 'original_resume'
     requires_confirmation: bool = False
 
 
@@ -107,7 +133,7 @@ class ResumeOptimizationAIOutput(BaseModel):
     optimization_summary: str = Field(min_length=1, max_length=2000)
     optimized_content: str = Field(min_length=1, max_length=50000)
     score_improvement: int = Field(ge=0, le=100)
-    change_items: list[ResumeChangeItem] = Field(min_length=1, max_length=50)
+    change_items: list[ResumeChangeItem] = Field(default_factory=list, max_length=50)
     confirmation_questions: list[str] = Field(default_factory=list, max_length=30)
 
 

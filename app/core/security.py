@@ -2,6 +2,8 @@ import bcrypt
 from jose import jwt
 from datetime import datetime, timedelta, timezone
 
+from app.core.config import settings
+
 def hash_password(password: str) -> str:
     """
     密码加密
@@ -26,7 +28,7 @@ def verify_password(
 
 
 #jwt token生成和验证
-SECRET_KEY = "003245ljd"
+SECRET_KEY = settings.JWT_SECRET_KEY
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 120
 REFRESH_TOKEN_EXPIRE_DAYS = 7

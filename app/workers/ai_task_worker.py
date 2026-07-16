@@ -9,6 +9,7 @@ from sqlalchemy import select
 import app.models  # noqa: F401
 from app.core.database import async_session, engine
 from app.models.ai import AITask
+from app.services.career_plan_service import execute_career_plan_task
 from app.services.resume_optimization_service import execute_resume_optimization_task
 
 
@@ -40,12 +41,15 @@ async def run(task_id: str) -> int:
     if task is None:
         print(f'[ai-worker] task not found after wait: {task_id}')
         return 2
-    if task.task_type != 'resume_optimization':
+    if task.task_type not in ('resume_optimization', 'career_plan'):
         print(f'[ai-worker] unsupported task type: {task.task_type}')
         return 3
     print(f'[ai-worker] start task={task_id} type={task.task_type}')
     try:
-        await execute_resume_optimization_task(task_id)
+        if task.task_type == 'resume_optimization':
+            await execute_resume_optimization_task(task_id)
+        elif task.task_type == 'career_plan':
+            await execute_career_plan_task(task_id)
     finally:
         await engine.dispose()
     print(f'[ai-worker] finished task={task_id}')
@@ -62,4 +66,3 @@ def main() -> int:
 
 if __name__ == '__main__':
     raise SystemExit(main())
-

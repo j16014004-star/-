@@ -12,6 +12,8 @@ from app.ai.resume_optimization_agent import (
 )
 from app.ai.tencent_maas import TextGenerationResult
 from app.schemas.resume_optimization import (
+    ConfirmationAIApplyRequest,
+    ManualConfirmationItem,
     ResumeChangeItem,
     ResumeOptimizationAIOutput,
     ResumeOptimizationRequest,
@@ -37,6 +39,27 @@ def test_all_focus_cannot_be_combined():
             optimization_focus=['all', 'skills'],
             style='professional',
             preserve_structure=True,
+        )
+
+
+def test_ai_confirmation_request_validates_confirmed_answers():
+    body = ConfirmationAIApplyRequest(
+        optimized_content='当前优化简历',
+        confirmation_questions=['请确认数据库类型'],
+        confirmed_answers=[{
+            'question': '请确认数据库类型',
+            'answer': '使用 MySQL 数据库',
+        }],
+    )
+    assert body.confirmed_answers[0].answer == '使用 MySQL 数据库'
+    with pytest.raises(ValidationError, match='必须存在于 confirmation_questions'):
+        ConfirmationAIApplyRequest(
+            optimized_content='当前优化简历',
+            confirmation_questions=['请确认数据库类型'],
+            confirmed_answers=[{
+                'question': '请确认项目链接',
+                'answer': 'https://example.com',
+            }],
         )
 
 
@@ -178,9 +201,11 @@ def test_parse_json_object_reports_truncated_json():
 def test_extract_added_content_has_safe_fallback():
     from app.routers.resume_optimizations import (
         build_pending_confirmation_summary,
+        derive_actual_added_content,
         extract_added_content,
         merge_change_items,
         merge_confirmation_actions,
+        missing_confirmation_content,
         serialize_confirmation_preview,
         split_redundant_date_questions,
     )
@@ -216,11 +241,30 @@ def test_extract_added_content_has_safe_fallback():
         'evidence': '来自用户回答',
     }
     assert merge_change_items([original_change], [original_change, confirmation_change]) == [
-        {**original_change, 'requires_confirmation': False},
-        {**confirmation_change, 'requires_confirmation': False},
+        {**original_change, 'evidence_source': 'original_resume', 'requires_confirmation': False},
+        {**confirmation_change, 'evidence_source': 'original_resume', 'requires_confirmation': False},
     ]
     action = {'type': 'manual', 'created_at': '2026-07-16 10:00', 'added_content': 'MySQL'}
     assert merge_confirmation_actions([action], [action]) == [action]
+    confirmed_change = {
+        **confirmation_change,
+        'evidence_source': 'user_confirmation',
+    }
+    final_content = '技能：Python\n使用 MySQL 数据库'
+    assert derive_actual_added_content(
+        '技能：Python',
+        final_content,
+        [confirmed_change],
+        evidence_source='user_confirmation',
+    ) == '使用 MySQL 数据库'
+    assert missing_confirmation_content(final_content, [confirmed_change]) == []
+    assert missing_confirmation_content('技能：Python', [confirmed_change]) == ['使用 MySQL 数据库']
+    confirmed_action = {
+        'type': 'ai',
+        'added_content': '使用 MySQL 数据库',
+    }
+    assert missing_confirmation_content(final_content, [], [confirmed_action]) == []
+    assert missing_confirmation_content('技能：Python', [], [confirmed_action]) == ['使用 MySQL 数据库']
 
 
 def test_saved_serializer_always_returns_full_original_content():
@@ -249,6 +293,61 @@ def test_saved_serializer_always_returns_full_original_content():
     )
     result = serialize_optimization_version(version)
     assert result['original'] == '完整原始简历\n第二行'
+
+
+def test_confirmed_answer_fallback_always_adds_user_content():
+    from app.routers.resume_optimizations import build_confirmed_answer_fallback
+
+    payload = build_confirmed_answer_fallback(
+        '技能：Python',
+        [ManualConfirmationItem(question='请确认数据库类型', answer='使用 MySQL 数据库')],
+        ['请确认数据库类型', '请确认项目链接'],
+        80,
+    )
+    assert '使用 MySQL 数据库' in payload['optimized_content']
+    assert payload['resolved_questions'] == ['请确认数据库类型']
+    assert payload['remaining_questions'] == ['请确认项目链接']
+    assert payload['change_items'][0]['evidence_source'] == 'user_confirmation'
+
+
+def test_prompt_engineering_separates_facts_from_knowledge_rules():
+    from app.ai.resume_optimization_prompt import (
+        CONFIRMATION_SYSTEM_PROMPT,
+        SYSTEM_PROMPT,
+        build_confirmation_prompt,
+        build_user_prompt,
+    )
+
+    chunk = KnowledgeChunk(
+        id='rule-1',
+        document_id='doc-1',
+        title='优化规则',
+        section='ATS',
+        content='使用清晰的岗位关键词。',
+        source_file='rules.md',
+        version='v1',
+    )
+    prompt = build_user_prompt(
+        resume_text='使用 FastAPI 开发接口。',
+        structured_data={'skills': ['FastAPI']},
+        request_payload={'optimization_type': 'general'},
+        knowledge_chunks=[chunk],
+    )
+    assert 'knowledge 只影响怎么写，不能决定写什么事实' in SYSTEM_PROMPT
+    assert 'evidence_source' in SYSTEM_PROMPT
+    assert '<task_instruction>' in prompt
+    assert 'rule-1' in prompt
+
+    confirmation_prompt = build_confirmation_prompt(
+        optimized_content='使用 FastAPI 开发接口。',
+        original_content='使用 FastAPI 开发接口。',
+        confirmation_questions=['请确认数据库类型'],
+        confirmed_answers=[{'question': '请确认数据库类型', 'answer': '数据库是 MySQL'}],
+        feedback='数据库是 MySQL',
+    )
+    assert '问题，不是事实' in CONFIRMATION_SYSTEM_PROMPT
+    assert '<confirmation_context>' in confirmation_prompt
+    assert '数据库是 MySQL' in confirmation_prompt
 
 
 @pytest.mark.asyncio
@@ -304,6 +403,48 @@ async def test_ai_confirmation_blocks_unconfirmed_number_without_raising(monkeyp
     assert result['optimized_content'] == '原简历内容'
     assert result['change_items'] == []
     assert result['remaining_questions'] == ['请确认是否有量化结果']
+
+
+@pytest.mark.asyncio
+async def test_ai_confirmation_uses_confirmed_answer_and_returns_actual_saved_text(monkeypatch):
+    import app.routers.resume_optimizations as routes
+
+    class ConfirmedAnswerGateway:
+        async def generate_json(self, **kwargs):
+            payload = {
+                'optimized_content': '项目经历\n接口性能提升50%',
+                'optimization_summary': '已整合用户确认的量化成果',
+                'score_improvement': 85,
+                'change_items': [{
+                    'section': '项目经历',
+                    'original': '项目经历',
+                    'optimized': '接口性能提升50%',
+                    'reason': '补充用户确认的成果',
+                    'evidence': '用户确认性能提升50%',
+                    'evidence_source': 'user_confirmation',
+                    'requires_confirmation': False,
+                }],
+                'added_content': '模型返回的不准确摘要',
+                'resolved_questions': ['请确认性能提升比例'],
+                'remaining_questions': [],
+            }
+            return TextGenerationResult(content=json.dumps(payload, ensure_ascii=False), usage={})
+
+    monkeypatch.setattr(routes, 'TencentMaaSModelGateway', ConfirmedAnswerGateway)
+    result = await routes.apply_ai_confirmations(
+        optimized_content='项目经历',
+        original_content='项目经历',
+        confirmation_questions=['请确认性能提升比例'],
+        confirmed_answers=[ManualConfirmationItem(
+            question='请确认性能提升比例',
+            answer='接口性能提升50%',
+        )],
+        score_improvement=80,
+    )
+    assert result['optimized_content'] == '项目经历\n接口性能提升50%'
+    assert result['added_content'] == '接口性能提升50%'
+    assert result['resolved_questions'] == ['请确认性能提升比例']
+    assert result['remaining_questions'] == []
 
 
 def test_saved_resume_optimization_routes_are_registered():
