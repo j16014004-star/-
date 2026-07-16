@@ -10,7 +10,7 @@ from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.routers import career_plans as career_router
 from app.services import career_plan_service as service
-from app.schemas.career_plan import CareerPlanCreateRequest
+from app.schemas.career_plan import CareerPlanCreateRequest, CareerPlanRegenerateRequest
 
 
 NOW = datetime(2026, 7, 16, 12, 0, 0)
@@ -20,6 +20,7 @@ def build_test_app() -> FastAPI:
     app = FastAPI()
     app.include_router(career_router.profile_router)
     app.include_router(career_router.plan_router)
+    app.include_router(career_router.execution_router)
 
     async def fake_db():
         yield SimpleNamespace()
@@ -92,11 +93,78 @@ def test_career_profile_file_plan_and_result_http_contracts(monkeypatch):
         plan_id, user_id = args[1], args[2]
         return plan if (plan_id, user_id) == (31, 7) else None
 
+    async def accept(*args, **kwargs):
+        plan.status = "accepted"
+        plan.accepted_at = NOW
+        return plan, SimpleNamespace(id=61)
+
+    async def regenerate(*args, **kwargs):
+        return SimpleNamespace(
+            task=SimpleNamespace(id="career-task-2", status="pending", result_id=None),
+            plan=SimpleNamespace(id=32),
+        )
+
+    overview = {
+        "id": 61,
+        "career_plan_id": 31,
+        "status": "active",
+        "start_date": "2026-07-16",
+        "end_date": None,
+        "current_week": 1,
+        "current_stage": "基础巩固",
+        "total_tasks": 1,
+        "completed_tasks": 0,
+        "progress_percent": 0,
+        "current_streak": 0,
+        "longest_streak": 0,
+        "today_tasks": [],
+        "week_tasks": [],
+        "recent_checkins": [],
+    }
+
+    async def current_execution(*args, **kwargs):
+        return overview
+
+    async def check_in(*args, **kwargs):
+        return {**overview, "completed_tasks": 1, "progress_percent": 100}
+
+    question_payload = {
+        "id": 81,
+        "execution_task_id": 71,
+        "question": "FastAPI Depends 怎么使用？",
+        "answer": "Depends 用于声明依赖。",
+        "status": "answered",
+        "error_message": None,
+        "created_at": NOW,
+        "answered_at": NOW,
+    }
+
+    async def submit_question(*args, **kwargs):
+        return SimpleNamespace(
+            task=SimpleNamespace(
+                id="question-task-1", status="pending", result_id=None
+            ),
+            question=SimpleNamespace(id=81),
+        )
+
+    async def list_questions(*args, **kwargs):
+        return [question_payload]
+
+    async def question_detail(*args, **kwargs):
+        return question_payload
+
     monkeypatch.setattr(career_router, "create_career_profile", create_profile)
     monkeypatch.setattr(career_router, "upload_project_attachment", upload)
     monkeypatch.setattr(career_router, "remove_project_attachment", remove)
     monkeypatch.setattr(career_router, "start_career_plan", start)
     monkeypatch.setattr(career_router, "get_plan", get_owned_plan)
+    monkeypatch.setattr(career_router, "accept_career_plan", accept)
+    monkeypatch.setattr(career_router, "regenerate_career_plan", regenerate)
+    monkeypatch.setattr(career_router, "get_current_execution_overview", current_execution)
+    monkeypatch.setattr(career_router, "check_in_execution_task", check_in)
+    monkeypatch.setattr(career_router, "submit_career_question", submit_question)
+    monkeypatch.setattr(career_router, "list_career_questions", list_questions)
+    monkeypatch.setattr(career_router, "get_career_question_detail", question_detail)
 
     with TestClient(build_test_app()) as client:
         profile_response = client.post(
@@ -136,6 +204,46 @@ def test_career_profile_file_plan_and_result_http_contracts(monkeypatch):
         assert result_response.status_code == 200
         assert result_response.json()["data"]["retrieval_source"] == "qdrant_vector"
         assert result_response.json()["data"]["retrieved_chunk_ids"] == ["chunk-1"]
+
+        accept_response = client.post("/api/career-plans/31/accept")
+        assert accept_response.status_code == 200
+        assert accept_response.json()["data"]["execution_plan_id"] == 61
+
+        regenerate_response = client.post(
+            "/api/career-plans/31/regenerate",
+            json={"feedback": "每周学习时间有限，请减少任务数量。", "focus_areas": ["learning_intensity"]},
+        )
+        assert regenerate_response.status_code == 200
+        assert regenerate_response.json()["data"]["previous_plan_id"] == 31
+
+        current_response = client.get("/api/career-plan-executions/current")
+        assert current_response.status_code == 200
+        assert current_response.json()["data"]["career_plan_id"] == 31
+
+        checkin_response = client.post(
+            "/api/career-plan-executions/tasks/71/check-in",
+            json={"status": "completed", "note": "完成练习"},
+        )
+        assert checkin_response.status_code == 200
+        assert checkin_response.json()["data"]["progress_percent"] == 100
+
+        question_response = client.post(
+            "/api/career-plan-executions/tasks/71/questions",
+            json={"question": "FastAPI Depends 怎么使用？"},
+        )
+        assert question_response.status_code == 200
+        assert question_response.json()["data"]["task_type"] == "career_plan_question"
+        assert question_response.json()["data"]["question_id"] == 81
+
+        history_response = client.get(
+            "/api/career-plan-executions/tasks/71/questions"
+        )
+        assert history_response.status_code == 200
+        assert history_response.json()["data"][0]["status"] == "answered"
+
+        detail_response = client.get("/api/career-plan-executions/questions/81")
+        assert detail_response.status_code == 200
+        assert detail_response.json()["data"]["answer"].startswith("Depends")
 
         # get_plan applies both plan_id and current user_id; another user's plan is hidden as 404.
         assert client.get("/api/career-plans/999").status_code == 404
@@ -197,6 +305,92 @@ async def test_start_plan_commits_before_worker_launch(monkeypatch):
     assert result.plan.id == 51
     assert result.task.resource_id == 51
     assert result.plan.task_id == result.task.id
+
+
+@pytest.mark.asyncio
+async def test_regenerate_keeps_previous_plan_and_stores_feedback(monkeypatch):
+    previous = SimpleNamespace(
+        id=60,
+        user_id=7,
+        profile_id=41,
+        status="accepted",
+        accepted_at=NOW,
+        previous_plan_id=None,
+        career_profile_summary={},
+        recommended_roles=[],
+        career_goals={},
+        skill_gap_analysis=[],
+        learning_path={},
+        action_plan={},
+        risks_and_alternatives={},
+        retrieval_source="qdrant_vector",
+        retrieval_error=None,
+        retrieved_chunk_ids=["chunk-1"],
+        knowledge_base_version="v1",
+        created_at=NOW,
+    )
+    profile = SimpleNamespace(
+        id=41,
+        user_id=7,
+        education="本科",
+        experience="1-3年",
+        skills=["Python"],
+        work_description="后端开发",
+        weekly_learning_hours=5,
+        preferred_target_role="Python后端工程师",
+        projects=[],
+    )
+
+    class RegenerateSession:
+        committed = False
+
+        async def commit(self):
+            self.committed = True
+
+    db = RegenerateSession()
+
+    async def get_plan(db, plan_id, user_id):
+        return previous
+
+    async def get_profile(db, profile_id, user_id):
+        return profile
+
+    async def count_active(db, user_id):
+        return 0
+
+    async def create_plan(db, plan):
+        plan.id = 61
+        return plan
+
+    async def create_task(db, task):
+        return task
+
+    def launch(task_id):
+        assert db.committed is True
+
+    monkeypatch.setattr(service, "get_plan", get_plan)
+    monkeypatch.setattr(service, "get_profile", get_profile)
+    monkeypatch.setattr(service, "count_active_tasks_for_user", count_active)
+    monkeypatch.setattr(service, "create_plan", create_plan)
+    monkeypatch.setattr(service, "create_ai_task", create_task)
+    monkeypatch.setattr(service, "launch_ai_task_worker", launch)
+
+    result = await service.regenerate_career_plan(
+        db,
+        user_id=7,
+        plan_id=60,
+        request=CareerPlanRegenerateRequest(
+            feedback="每周只有五小时，请降低学习强度。",
+            focus_areas=["learning_intensity"],
+        ),
+    )
+
+    assert previous.status == "accepted"
+    assert result.plan.id == 61
+    assert result.plan.previous_plan_id == 60
+    assert result.plan.regeneration_feedback == "每周只有五小时，请降低学习强度。"
+    assert result.task.request_payload["previous_plan_id"] == 60
+    assert isinstance(result.task.request_payload["previous_plan"]["created_at"], str)
 
 
 class FakeSession:

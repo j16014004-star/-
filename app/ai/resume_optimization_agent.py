@@ -20,6 +20,9 @@ class ResumeAgentState(TypedDict, total=False):
     max_output_tokens: int | None
     retrieval_query: str
     knowledge_chunks: list[KnowledgeChunk]
+    retrieval_source: str
+    retrieval_error: str | None
+    retrieval_audit: list[dict]
     raw_output: str
     token_usage: dict[str, int]
     result: ResumeOptimizationAIOutput
@@ -74,7 +77,12 @@ class ResumeOptimizationAgent:
 
     async def _retrieve_knowledge(self, state: ResumeAgentState) -> dict[str, Any]:
         chunks = await self.retriever.retrieve(state['retrieval_query'])
-        return {'knowledge_chunks': chunks}
+        return {
+            'knowledge_chunks': chunks,
+            'retrieval_source': getattr(self.retriever, 'last_source', 'unknown'),
+            'retrieval_error': getattr(self.retriever, 'last_error', None),
+            'retrieval_audit': getattr(self.retriever, 'last_results', []),
+        }
 
     async def _generate(self, state: ResumeAgentState) -> dict[str, Any]:
         prompt = build_user_prompt(

@@ -5,7 +5,7 @@ import asyncio
 import hashlib
 import json
 import re
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from uuid import NAMESPACE_URL, uuid5
 
@@ -26,6 +26,7 @@ class KnowledgeChunk:
     source_file: str
     version: str
     score: float = 0.0
+    metadata: dict[str, str | list[str]] = field(default_factory=dict)
 
 
 def normalize_text(text: str) -> str:
@@ -75,6 +76,7 @@ def split_document(path: Path, *, chunk_size: int, overlap: int) -> list[Knowled
                     content=part,
                     source_file=path.name,
                     version=version,
+                    metadata=_infer_metadata(path, section, part),
                 )
             )
     return chunks
@@ -120,14 +122,21 @@ class BaseKnowledgeRetriever:
         self.gateway = gateway or TencentMaaSModelGateway()
         self.last_source = "not_run"
         self.last_error: str | None = None
+        self.last_results: list[dict] = []
 
-    async def retrieve(self, query: str, *, top_k: int | None = None) -> list[KnowledgeChunk]:
+    async def retrieve(
+        self, query: str, *, top_k: int | None = None,
+        filters: dict[str, str | list[str]] | None = None,
+    ) -> list[KnowledgeChunk]:
         limit = max(1, top_k or settings.AI_RAG_TOP_K)
         if settings.QDRANT_ENABLED:
             try:
-                chunks = await self._retrieve_qdrant(query, limit)
+                candidate_limit = limit * max(1, settings.AI_RAG_CANDIDATE_MULTIPLIER)
+                chunks = await self._retrieve_qdrant(query, candidate_limit, filters)
+                chunks = _hybrid_rerank(query, chunks)[:limit]
                 self.last_source = "qdrant_vector"
                 self.last_error = None
+                self.last_results = _retrieval_audit(chunks)
                 return chunks
             except Exception as exc:
                 self.last_source = "local_keyword_fallback"
@@ -135,11 +144,19 @@ class BaseKnowledgeRetriever:
         else:
             self.last_source = "local_keyword"
             self.last_error = None
-        return await asyncio.to_thread(self._retrieve_local, query, limit)
+        chunks = await asyncio.to_thread(self._retrieve_local, query, limit, filters)
+        self.last_results = _retrieval_audit(chunks)
+        return chunks
 
-    def _retrieve_local(self, query: str, limit: int) -> list[KnowledgeChunk]:
+    def _retrieve_local(
+        self, query: str, limit: int,
+        filters: dict[str, str | list[str]] | None = None,
+    ) -> list[KnowledgeChunk]:
         query_terms = _search_terms(query)
-        chunks = load_knowledge_chunks(self.source_dir)
+        chunks = [
+            chunk for chunk in load_knowledge_chunks(self.source_dir)
+            if _matches_metadata(chunk.metadata, filters)
+        ]
         for chunk in chunks:
             chunk_terms = _search_terms(f'{chunk.title} {chunk.section} {chunk.content}')
             overlap = len(query_terms & chunk_terms)
@@ -149,7 +166,12 @@ class BaseKnowledgeRetriever:
         positive = [item for item in ranked if item.score > 0]
         return (positive or ranked)[:limit]
 
-    async def _retrieve_qdrant(self, query: str, limit: int) -> list[KnowledgeChunk]:
+    async def _retrieve_qdrant(
+        self, query: str, limit: int,
+        filters: dict[str, str | list[str]] | None = None,
+    ) -> list[KnowledgeChunk]:
+        from qdrant_client import models
+
         vector = await self.gateway.embed_text(query)
         client = _create_qdrant_client()
         try:
@@ -157,11 +179,15 @@ class BaseKnowledgeRetriever:
                 collection_name=self.collection_name,
                 query=vector,
                 limit=limit,
+                query_filter=_qdrant_filter(filters, models),
                 with_payload=True,
             )
             chunks: list[KnowledgeChunk] = []
             for point in response.points:
                 payload = point.payload or {}
+                score = float(point.score or 0)
+                if score < settings.AI_RAG_MIN_VECTOR_SCORE:
+                    continue
                 chunks.append(
                     KnowledgeChunk(
                         id=str(payload.get('chunk_id') or point.id),
@@ -171,7 +197,8 @@ class BaseKnowledgeRetriever:
                         content=str(payload.get('content') or ''),
                         source_file=str(payload.get('source_file') or ''),
                         version=str(payload.get('version') or ''),
-                        score=float(point.score or 0),
+                        score=score,
+                        metadata=dict(payload.get("metadata") or {}),
                     )
                 )
             return chunks
@@ -193,6 +220,15 @@ class CareerKnowledgeRetriever(BaseKnowledgeRetriever):
         super().__init__(
             source_dir=settings.CAREER_PLANNING_KB_SOURCE_DIR,
             collection_name=settings.QDRANT_CAREER_COLLECTION,
+            gateway=gateway,
+        )
+
+
+class SkillAssessmentKnowledgeRetriever(BaseKnowledgeRetriever):
+    def __init__(self, gateway: TencentMaaSModelGateway | None = None) -> None:
+        super().__init__(
+            source_dir=settings.SKILL_ASSESSMENT_KB_SOURCE_DIR,
+            collection_name=settings.QDRANT_SKILL_ASSESSMENT_COLLECTION,
             gateway=gateway,
         )
 
@@ -221,6 +257,18 @@ async def ingest_career_knowledge_to_qdrant(
     )
 
 
+async def ingest_skill_assessment_knowledge_to_qdrant(
+    gateway: TencentMaaSModelGateway | None = None,
+) -> int:
+    return await ingest_knowledge_to_qdrant(
+        source_dir=settings.SKILL_ASSESSMENT_KB_SOURCE_DIR,
+        processed_dir=settings.SKILL_ASSESSMENT_KB_PROCESSED_DIR,
+        collection_name=settings.QDRANT_SKILL_ASSESSMENT_COLLECTION,
+        knowledge_base='skill_assessment',
+        gateway=gateway,
+    )
+
+
 async def ingest_knowledge_to_qdrant(
     *,
     source_dir: str | Path,
@@ -245,6 +293,17 @@ async def ingest_knowledge_to_qdrant(
                 distance=models.Distance.COSINE,
             ),
         )
+    else:
+        await client.delete(
+            collection_name=collection_name,
+            points_selector=models.FilterSelector(filter=models.Filter(must=[
+                models.FieldCondition(
+                    key="knowledge_base",
+                    match=models.MatchValue(value=knowledge_base),
+                )
+            ])),
+            wait=True,
+        )
     for chunk in chunks:
         vector = await model_gateway.embed_text(chunk.content)
         point = models.PointStruct(
@@ -260,6 +319,8 @@ async def ingest_knowledge_to_qdrant(
                 'version': chunk.version,
                 'knowledge_base': knowledge_base,
                 'status': 'active',
+                'metadata': chunk.metadata,
+                **chunk.metadata,
             },
         )
         await client.upsert(
@@ -342,3 +403,73 @@ def _search_terms(text: str) -> set[str]:
     chinese = ''.join(re.findall(r'[\u4e00-\u9fff]', lowered))
     bigrams = {chinese[index:index + 2] for index in range(max(0, len(chinese) - 1))}
     return latin | bigrams
+
+
+def _infer_metadata(path: Path, section: str, content: str) -> dict[str, str | list[str]]:
+    combined = f"{path.stem} {section} {content}".lower()
+    skills = [name for name in (
+        "python", "fastapi", "pydantic", "sqlalchemy", "mysql", "postgresql",
+        "redis", "jwt", "pytest", "alembic", "docker", "linux", "nginx",
+        "git", "asyncio", "qdrant",
+    ) if name in combined]
+    knowledge_type = "guidance"
+    if any(word in section for word in ("评分", "Rubric", "验收", "考核")):
+        knowledge_type = "rubric"
+    elif any(word in section for word in ("错误", "不足", "扣分", "薄弱")):
+        knowledge_type = "mistake"
+    elif any(word in section for word in ("实践", "项目", "任务")):
+        knowledge_type = "practice"
+    level = "all"
+    if "初级" in combined and "中级" not in combined and "高级" not in combined:
+        level = "junior"
+    elif "中级" in combined and "高级" not in combined:
+        level = "middle"
+    elif "高级" in combined and "初级" not in combined and "中级" not in combined:
+        level = "senior"
+    return {
+        "role": "python_backend",
+        "knowledge_type": knowledge_type,
+        "level": level,
+        "skills": skills,
+    }
+
+
+def _matches_metadata(metadata: dict, filters: dict | None) -> bool:
+    if not filters:
+        return True
+    for key, expected in filters.items():
+        actual = metadata.get(key)
+        expected_values = set(expected if isinstance(expected, list) else [expected])
+        actual_values = set(actual if isinstance(actual, list) else [actual])
+        if not expected_values & actual_values:
+            return False
+    return True
+
+
+def _qdrant_filter(filters: dict | None, models):
+    if not filters:
+        return None
+    conditions = []
+    for key, value in filters.items():
+        if isinstance(value, list):
+            conditions.append(models.FieldCondition(key=key, match=models.MatchAny(any=value)))
+        else:
+            conditions.append(models.FieldCondition(key=key, match=models.MatchValue(value=value)))
+    return models.Filter(must=conditions)
+
+
+def _hybrid_rerank(query: str, chunks: list[KnowledgeChunk]) -> list[KnowledgeChunk]:
+    query_terms = _search_terms(query)
+    for chunk in chunks:
+        chunk_terms = _search_terms(f"{chunk.title} {chunk.section} {chunk.content}")
+        lexical = len(query_terms & chunk_terms) / max(1, len(query_terms))
+        chunk.score = round(chunk.score * 0.8 + lexical * 0.2, 6)
+    return sorted(chunks, key=lambda item: item.score, reverse=True)
+
+
+def _retrieval_audit(chunks: list[KnowledgeChunk]) -> list[dict]:
+    return [
+        {"chunk_id": item.id, "document_id": item.document_id, "score": item.score,
+         "source_file": item.source_file, "section": item.section, "version": item.version}
+        for item in chunks
+    ]

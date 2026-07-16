@@ -73,6 +73,112 @@ class CareerPlanCreateRequest(BaseModel):
         return self
 
 
+CareerPlanFocusArea = Literal[
+    "target_role",
+    "learning_intensity",
+    "learning_path",
+    "project_tasks",
+    "job_search",
+]
+
+
+class CareerPlanRegenerateRequest(BaseModel):
+    feedback: str = Field(min_length=10, max_length=1000)
+    focus_areas: list[CareerPlanFocusArea] = Field(default_factory=list, max_length=5)
+
+    @model_validator(mode="after")
+    def normalize_feedback(self):
+        self.feedback = self.feedback.strip()
+        if len(self.feedback) < 10:
+            raise ValueError("反馈内容至少填写 10 个字")
+        self.focus_areas = list(dict.fromkeys(self.focus_areas))
+        return self
+
+
+class CareerTaskCheckinRequest(BaseModel):
+    status: Literal["completed", "pending", "skipped"]
+    note: str | None = Field(default=None, max_length=300)
+
+    @model_validator(mode="after")
+    def normalize_note(self):
+        if self.note is not None:
+            self.note = self.note.strip() or None
+        return self
+
+
+class CareerQuestionRequest(BaseModel):
+    question: str = Field(min_length=5, max_length=1000)
+
+    @model_validator(mode="after")
+    def normalize_question(self):
+        self.question = self.question.strip()
+        if len(self.question) < 5:
+            raise ValueError("学习问题至少填写 5 个字")
+        return self
+
+
+class CareerQuestionAIOutput(BaseModel):
+    answer: str = Field(min_length=1, max_length=12000)
+
+
+class CareerAssessmentAnswerInput(BaseModel):
+    question_id: int = Field(gt=0)
+    answer: str | list[str]
+
+    @model_validator(mode="after")
+    def validate_answer(self):
+        if isinstance(self.answer, str):
+            self.answer = self.answer.strip()
+            if not self.answer:
+                raise ValueError("答案不能为空")
+        else:
+            self.answer = list(dict.fromkeys(str(item).strip() for item in self.answer if str(item).strip()))
+            if not self.answer:
+                raise ValueError("答案不能为空")
+        return self
+
+
+class CareerAssessmentSubmitRequest(BaseModel):
+    answers: list[CareerAssessmentAnswerInput] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode="after")
+    def unique_questions(self):
+        ids = [item.question_id for item in self.answers]
+        if len(ids) != len(set(ids)):
+            raise ValueError("同一道题不能重复提交")
+        return self
+
+
+class GeneratedAssessmentQuestion(BaseModel):
+    question_type: Literal["choice", "multiple", "short", "code"]
+    title: str = Field(min_length=1, max_length=3000)
+    options: list[dict] | None = None
+    correct_answer: str | list[str] | None = None
+    reference_answer: str | None = Field(default=None, max_length=8000)
+    rubric: str | None = Field(default=None, max_length=4000)
+    points: int = Field(ge=1, le=100)
+    code_language: str | None = Field(default=None, max_length=30)
+
+
+class CareerAssessmentGenerationOutput(BaseModel):
+    questions: list[GeneratedAssessmentQuestion] = Field(min_length=6, max_length=10)
+    time_limit_minutes: int | None = Field(default=None, ge=5, le=180)
+
+
+class SubjectiveAssessmentResult(BaseModel):
+    question_id: int
+    score: int = Field(ge=0, le=100)
+    rationale: str = Field(min_length=1, max_length=4000)
+
+
+class CareerAssessmentEvaluationOutput(BaseModel):
+    subjective_results: list[SubjectiveAssessmentResult] = Field(default_factory=list)
+    summary: str = Field(min_length=1, max_length=8000)
+    strengths: list[str] = Field(default_factory=list, max_length=20)
+    weaknesses: list[str] = Field(default_factory=list, max_length=20)
+    improvement_advice: list[str] = Field(default_factory=list, max_length=20)
+
+
 class CareerPlanStartResponse(BaseModel):
     task_id: str
     status: AITaskStatus
@@ -115,6 +221,9 @@ class LearningStage(BaseModel):
 class CareerPlanResponse(BaseModel):
     id: int
     profile_id: int
+    status: Literal["processing", "completed", "accepted", "failed"]
+    accepted_at: datetime | None = None
+    previous_plan_id: int | None = None
     career_profile_summary: dict
     recommended_roles: list[RecommendedRole]
     career_goals: dict

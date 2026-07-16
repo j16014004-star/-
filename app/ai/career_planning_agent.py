@@ -23,6 +23,7 @@ class CareerPlanningAgentState(TypedDict, total=False):
     retrieval_source: str
     retrieval_error: str | None
     retrieved_chunk_ids: list[str]
+    retrieval_audit: list[dict]
     raw_output: str
     token_usage: dict[str, int]
     result: CareerPlanAIOutput
@@ -79,9 +80,11 @@ class CareerPlanningAgent:
             for item in profile.get("projects") or []
             if isinstance(item, dict)
         )
+        feedback = str(request_payload.get("feedback") or "")
+        focus_areas = " ".join(request_payload.get("focus_areas") or [])
         query = (
             f"{target_role} 职业规划 Python 后端工程师 FastAPI SQLAlchemy MySQL Redis Docker "
-            f"求职 学习计划 技能差距 项目包装 {skills} {projects}"
+            f"求职 学习计划 技能差距 项目包装 {skills} {projects} {feedback} {focus_areas}"
         )
         return {"retrieval_query": query}
 
@@ -92,6 +95,7 @@ class CareerPlanningAgent:
             "retrieval_source": getattr(self.retriever, "last_source", "unknown"),
             "retrieval_error": getattr(self.retriever, "last_error", None),
             "retrieved_chunk_ids": [chunk.id for chunk in chunks],
+            "retrieval_audit": getattr(self.retriever, "last_results", []),
         }
 
     async def _generate(self, state: CareerPlanningAgentState) -> dict[str, Any]:

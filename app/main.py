@@ -20,6 +20,7 @@ from app.routers.resume_optimizations import router as resume_optimizations_rout
 from app.routers.resume_optimizations import saved_router as saved_resume_optimizations_router
 from app.routers.career_plans import plan_router as career_plans_router
 from app.routers.career_plans import profile_router as career_profiles_router
+from app.routers.career_plans import execution_router as career_executions_router
 
 
 @asynccontextmanager
@@ -79,3 +80,4 @@ app.include_router(resume_optimizations_router)
 app.include_router(saved_resume_optimizations_router)
 app.include_router(career_profiles_router)
 app.include_router(career_plans_router)
+app.include_router(career_executions_router)

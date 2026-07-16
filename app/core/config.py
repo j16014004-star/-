@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     TENCENT_MAAS_REGION: str = 'china-mainland'
     RESUME_OPTIMIZATION_MODEL: str = 'deepseek-v4-pro'
     CAREER_PLANNING_MODEL: str = 'deepseek-v4-pro'
+    CAREER_QUESTION_MAX_OUTPUT_TOKENS: int = 2000
+    CAREER_QUESTION_COOLDOWN_SECONDS: int = 5
     TENCENT_MAAS_EMBEDDING_MODEL: str = 'kinfra-vl-embedding-2b'
     TENCENT_MAAS_EMBEDDING_DIMENSION: int = 2048
     TENCENT_MAAS_EMBEDDING_ENDPOINT: str = '/embeddings/multimodal'
@@ -70,6 +72,8 @@ class Settings(BaseSettings):
     RESUME_OPTIMIZATION_KB_PROCESSED_DIR: str = './knowledge_base/resume_optimization/processed'
     CAREER_PLANNING_KB_SOURCE_DIR: str = './knowledge_base/career_planning/source'
     CAREER_PLANNING_KB_PROCESSED_DIR: str = './knowledge_base/career_planning/processed'
+    SKILL_ASSESSMENT_KB_SOURCE_DIR: str = './knowledge_base/skill_assessment/source'
+    SKILL_ASSESSMENT_KB_PROCESSED_DIR: str = './knowledge_base/skill_assessment/processed'
     QDRANT_ENABLED: bool = False
     QDRANT_LOCAL_MODE: bool = True
     QDRANT_LOCAL_PATH: str = './vector_store/qdrant'
@@ -77,6 +81,9 @@ class Settings(BaseSettings):
     QDRANT_API_KEY: str = ''
     QDRANT_RESUME_COLLECTION: str = 'resume_optimization_kb'
     QDRANT_CAREER_COLLECTION: str = 'career_planning_kb'
+    QDRANT_SKILL_ASSESSMENT_COLLECTION: str = 'career_skill_assessment_kb'
+    AI_RAG_MIN_VECTOR_SCORE: float = 0.25
+    AI_RAG_CANDIDATE_MULTIPLIER: int = 3
 
     # 向量数据库
     VECTOR_DB_PATH: str = "./vector_store"

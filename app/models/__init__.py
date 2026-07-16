@@ -3,7 +3,19 @@
 from app.models.user import LoginLog, RefreshToken, User, UserRole, VerificationCode
 from app.models.resume import Resume, ResumeChunk
 from app.models.ai import AITask, ResumeOptimizationVersion
-from app.models.career_plan import CareerPlan, CareerPlanningProfile, CareerProjectAttachment
+from app.models.career_plan import (
+    CareerPlan,
+    CareerPlanCheckin,
+    CareerPlanExecution,
+    CareerPlanExecutionTask,
+    CareerPlanQuestion,
+    CareerStageAssessment,
+    CareerStageAssessmentAnswer,
+    CareerStageAssessmentQuestion,
+    CareerStageProgress,
+    CareerPlanningProfile,
+    CareerProjectAttachment,
+)
 from app.models.job import (
     Job,
     JobApplication,
@@ -16,6 +28,14 @@ __all__ = [
     'AITask',
     'ResumeOptimizationVersion',
     "CareerPlan",
+    "CareerPlanCheckin",
+    "CareerPlanExecution",
+    "CareerPlanExecutionTask",
+    "CareerPlanQuestion",
+    "CareerStageAssessment",
+    "CareerStageAssessmentAnswer",
+    "CareerStageAssessmentQuestion",
+    "CareerStageProgress",
     "CareerPlanningProfile",
     "CareerProjectAttachment",
     "LoginLog",

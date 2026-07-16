@@ -25,6 +25,7 @@ from app.crud.career_plan import (
     create_profile,
     create_project_attachment,
     delete_project_attachment,
+    get_plan,
     get_plan_by_task,
     get_profile,
     get_project_attachment,
@@ -32,7 +33,11 @@ from app.crud.career_plan import (
 )
 from app.models.ai import AITask
 from app.models.career_plan import CareerPlan, CareerPlanningProfile, CareerProjectAttachment
-from app.schemas.career_plan import CareerPlanCreateRequest, CareerPlanningProfileRequest
+from app.schemas.career_plan import (
+    CareerPlanCreateRequest,
+    CareerPlanRegenerateRequest,
+    CareerPlanningProfileRequest,
+)
 from app.workers.process_launcher import WorkerLaunchError, launch_ai_task_worker
 
 
@@ -86,6 +91,9 @@ def serialize_plan(plan: CareerPlan) -> dict:
     return {
         "id": plan.id,
         "profile_id": plan.profile_id,
+        "status": getattr(plan, "status", "completed"),
+        "accepted_at": getattr(plan, "accepted_at", None),
+        "previous_plan_id": getattr(plan, "previous_plan_id", None),
         "career_profile_summary": plan.career_profile_summary or {},
         "recommended_roles": plan.recommended_roles or [],
         "career_goals": plan.career_goals or {
@@ -115,6 +123,7 @@ def serialize_plan(plan: CareerPlan) -> dict:
         "retrieval_source": plan.retrieval_source,
         "retrieval_error": plan.retrieval_error,
         "retrieved_chunk_ids": plan.retrieved_chunk_ids or [],
+        "retrieval_audit": getattr(plan, "retrieval_audit", None) or [],
         "knowledge_base_version": plan.knowledge_base_version,
         "created_at": plan.created_at,
     }
@@ -313,6 +322,98 @@ async def start_career_plan(
     return CareerPlanTaskStartResult(task=task, plan=plan)
 
 
+async def regenerate_career_plan(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    plan_id: int,
+    request: CareerPlanRegenerateRequest,
+) -> CareerPlanTaskStartResult:
+    previous_plan = await get_plan(db, plan_id, user_id)
+    if previous_plan is None:
+        raise CareerPlanError("职业规划不存在", 404)
+    if previous_plan.status not in ("completed", "accepted"):
+        raise CareerPlanError("职业规划尚未生成完成，不能重新生成", 409)
+    profile = await get_profile(db, previous_plan.profile_id, user_id)
+    if profile is None:
+        raise CareerPlanError("职业规划档案不存在", 404)
+    if await count_active_tasks_for_user(db, user_id) >= settings.AI_MAX_CONCURRENT_TASKS:
+        raise CareerPlanError("已有 AI 任务正在运行，请等待任务完成", 409)
+
+    previous_plan_payload = json.loads(
+        json.dumps(serialize_plan(previous_plan), ensure_ascii=False, default=str)
+    )
+    payload = {
+        "regeneration": True,
+        "feedback": request.feedback,
+        "focus_areas": request.focus_areas,
+        "previous_plan_id": previous_plan.id,
+        "previous_plan": previous_plan_payload,
+        "preferred_target_role": profile.preferred_target_role,
+    }
+    plan = CareerPlan(
+        user_id=user_id,
+        profile_id=profile.id,
+        previous_plan_id=previous_plan.id,
+        regeneration_feedback=request.feedback,
+        regeneration_focus_areas=request.focus_areas,
+        status="processing",
+        career_profile_summary={},
+        recommended_roles=[],
+        career_goals={"short_term": [], "medium_term": [], "long_term": []},
+        skill_gap_analysis=[],
+        learning_path={
+            "total_weeks": 0,
+            "hours_per_week": profile.weekly_learning_hours,
+            "stages": [],
+        },
+        action_plan={
+            "this_week": [],
+            "this_month": [],
+            "portfolio_projects": [],
+            "resume_actions": [],
+            "review_points": [],
+        },
+        risks_and_alternatives={
+            "risks": [],
+            "assumptions_to_confirm": [],
+            "alternative_roles": [],
+            "adjustment_advice": [],
+        },
+        model_name=settings.CAREER_PLANNING_MODEL,
+        prompt_version=settings.AI_PROMPT_VERSION,
+    )
+    await create_plan(db, plan)
+    task = AITask(
+        id=str(uuid.uuid4()),
+        user_id=user_id,
+        task_type="career_plan",
+        resource_type="career_plan",
+        resource_id=plan.id,
+        status="pending",
+        progress=0,
+        model_name=settings.CAREER_PLANNING_MODEL,
+        prompt_version=settings.AI_PROMPT_VERSION,
+        input_hash=build_career_input_hash(profile, payload),
+        request_payload=payload,
+    )
+    await create_ai_task(db, task)
+    plan.task_id = task.id
+    await db.commit()
+    try:
+        launch_ai_task_worker(task.id)
+    except WorkerLaunchError as exc:
+        task.status = "failed"
+        task.progress = 100
+        task.error_message = "无法启动职业规划 worker，请稍后重试"
+        task.finished_at = utc_now_naive()
+        plan.status = "failed"
+        plan.error_message = task.error_message
+        await db.commit()
+        raise CareerPlanError(task.error_message, 503) from exc
+    return CareerPlanTaskStartResult(task=task, plan=plan)
+
+
 def build_career_input_hash(profile: CareerPlanningProfile, payload: dict) -> str:
     source = {
         "user_id": profile.user_id,
@@ -401,6 +502,7 @@ async def execute_career_plan_task(task_id: str) -> None:
             plan.retrieval_source = generation_audit["retrieval_source"]
             plan.retrieval_error = generation_audit["retrieval_error"]
             plan.retrieved_chunk_ids = generation_audit["retrieved_chunk_ids"]
+            plan.retrieval_audit = generation_audit.get("retrieval_audit") or []
             plan.knowledge_base_version = generation_audit["knowledge_base_version"]
             plan.status = "completed"
             plan.error_message = None
@@ -443,6 +545,7 @@ async def build_generated_career_plan(
         "retrieval_source": state.get("retrieval_source") or "unknown",
         "retrieval_error": state.get("retrieval_error"),
         "retrieved_chunk_ids": state.get("retrieved_chunk_ids") or [chunk.id for chunk in chunks],
+        "retrieval_audit": state.get("retrieval_audit") or [],
         "knowledge_base_version": ",".join(versions)[:100] or None,
     }
     return result, token_usage, generation_audit

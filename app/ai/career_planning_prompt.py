@@ -123,7 +123,8 @@ def build_user_prompt(
     }
     return "\n".join([
         "<task_instruction>",
-        "请根据用户真实背景生成职业生涯规划。优先围绕 Python 后端工程师方向，结合知识库给出学习、项目、简历、面试和找工作行动建议。",
+        "请根据用户真实背景生成职业生涯规划。若 request_payload.regeneration=true，必须在保留合理内容的基础上，重点按照 feedback 和 focus_areas 调整 previous_plan，不得直接照抄原规划。",
+        "优先围绕 Python 后端工程师方向，结合知识库给出学习、项目、简历、面试和找工作行动建议。",
         "不得编造用户没有的事实；不能把知识库里的通用能力当作用户已拥有能力。",
         "</task_instruction>",
         "<career_planning_context>",

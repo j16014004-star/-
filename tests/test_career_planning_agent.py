@@ -98,7 +98,7 @@ async def test_career_knowledge_retriever_local_returns_python_backend_chunk(mon
 async def test_career_retriever_records_qdrant_fallback_reason(monkeypatch):
     retriever = CareerKnowledgeRetriever()
 
-    async def fail_qdrant(query, limit):
+    async def fail_qdrant(query, limit, filters=None):
         raise RuntimeError("qdrant unavailable")
 
     monkeypatch.setattr("app.core.config.settings.QDRANT_ENABLED", True)
@@ -184,3 +184,9 @@ def test_career_routes_are_registered():
     assert "/api/career-plans/{plan_id}" in paths
     assert "/api/career-plans/project-files/upload" in paths
     assert "/api/career-plans/project-files/{file_id}" in paths
+    assert "/api/career-plans/{plan_id}/accept" in paths
+    assert "/api/career-plans/{plan_id}/regenerate" in paths
+    assert "/api/career-plan-executions/current" in paths
+    assert "/api/career-plan-executions/tasks/{task_id}/check-in" in paths
+    assert "/api/career-plan-executions/tasks/{execution_task_id}/questions" in paths
+    assert "/api/career-plan-executions/questions/{question_id}" in paths
