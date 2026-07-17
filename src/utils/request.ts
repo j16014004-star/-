@@ -3,9 +3,12 @@ import type { AxiosResponse, InternalAxiosRequestConfig } from 'axios'
 import { ElMessage } from 'element-plus'
 import { storage, TOKEN_KEY } from './storage'
 
+export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '/api').replace(/\/+$/, '')
+const configuredTimeout = Number(import.meta.env.VITE_API_TIMEOUT_MS || 150000)
+
 const request = axios.create({
-  baseURL: '/api',
-  timeout: 30000,
+  baseURL: API_BASE_URL,
+  timeout: Number.isFinite(configuredTimeout) ? configuredTimeout : 150000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -108,7 +111,7 @@ request.interceptors.response.use(
       isRefreshing = true
 
       try {
-        const response = await axios.post('/api/auth/refresh', {
+        const response = await axios.post(`${API_BASE_URL}/auth/refresh`, {
           refresh_token: refreshToken
         })
 
