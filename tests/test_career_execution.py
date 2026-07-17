@@ -172,3 +172,52 @@ async def test_checkin_hides_other_users_task_as_404(monkeypatch):
             request=CareerTaskCheckinRequest(status="completed"),
         )
     assert exc_info.value.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_complete_all_has_no_week_stage_or_daily_limit(monkeypatch):
+    db = FakeDb()
+    execution = SimpleNamespace(id=20, status="active")
+    tasks = [
+        SimpleNamespace(
+            id=1, status="pending", checked_in_at=None, is_active=False,
+            checkin_note=None,
+        ),
+        SimpleNamespace(
+            id=2, status="skipped", checked_in_at=None, is_active=False,
+            checkin_note="稍后学习",
+        ),
+        SimpleNamespace(
+            id=3, status="completed", checked_in_at=datetime(2026, 7, 16, 12),
+            is_active=True, checkin_note="已完成",
+        ),
+    ]
+    checkins = []
+
+    async def get_execution(db, execution_id, user_id):
+        return execution if (execution_id, user_id) == (20, 7) else None
+
+    async def get_tasks(db, execution_id, user_id):
+        return tasks
+
+    async def create_checkin(db, item):
+        checkins.append(item)
+        return item
+
+    async def overview(db, execution, user_id):
+        return {"completed_tasks": sum(task.status == "completed" for task in tasks)}
+
+    monkeypatch.setattr(service, "get_execution_by_id", get_execution)
+    monkeypatch.setattr(service, "get_execution_tasks", get_tasks)
+    monkeypatch.setattr(service, "create_checkin", create_checkin)
+    monkeypatch.setattr(service, "build_execution_overview", overview)
+
+    result = await service.complete_all_execution_tasks(
+        db, user_id=7, execution_plan_id=20
+    )
+
+    assert result["completed_count"] == 2
+    assert result["overview"]["completed_tasks"] == 3
+    assert all(task.status == "completed" for task in tasks)
+    assert all(task.is_active for task in tasks)
+    assert len(checkins) == 2

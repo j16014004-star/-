@@ -487,7 +487,7 @@ class FakeGateway:
 
 
 class FakeRetriever:
-    async def retrieve(self, query: str, *, top_k: int | None = None):
+    async def retrieve(self, query: str, *, top_k: int | None = None, filters=None):
         assert '简历' in query
         return [
             KnowledgeChunk(

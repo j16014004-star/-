@@ -35,6 +35,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    TOTP_ENCRYPTION_KEY: str = ""
 
     # AI / LLM
     OPENAI_API_KEY: str = ""
@@ -46,8 +47,19 @@ class Settings(BaseSettings):
     TENCENT_MAAS_API_KEY: str = ''
     TENCENT_MAAS_BASE_URL: str = 'https://tokenhub.tencentmaas.com/v1'
     TENCENT_MAAS_REGION: str = 'china-mainland'
-    RESUME_OPTIMIZATION_MODEL: str = 'deepseek-v4-pro'
-    CAREER_PLANNING_MODEL: str = 'deepseek-v4-pro'
+    RESUME_OPTIMIZATION_MODEL: str = 'deepseek-v4-flash'
+    CAREER_PLANNING_MODEL: str = 'deepseek-v4-flash'
+    HR_ASSISTANT_MODEL: str = 'deepseek-v4-flash'
+    HR_APPLICATION_MAX_OUTPUT_TOKENS: int = 1200
+    HR_APPLICATION_PROMPT_VERSION: str = 'hr-application-v1'
+    HR_REPLY_PROMPT_VERSION: str = 'hr-reply-v1'
+    HR_INTERVIEW_PROMPT_VERSION: str = 'hr-interview-v1'
+    HR_ASSISTANT_MODEL: str = 'deepseek-v4-flash'
+    HR_APPLICATION_MAX_OUTPUT_TOKENS: int = 1200
+    HR_APPLICATION_PROMPT_VERSION: str = 'hr-application-v1'
+    TENCENT_MAAS_CHAT_MODELS: str = (
+        'deepseek-v4-flash,glm-5.1,minimax-m2.7,minimax-m2.5,glm-5,kimi-k2.5'
+    )
     CAREER_QUESTION_MAX_OUTPUT_TOKENS: int = 2000
     CAREER_QUESTION_COOLDOWN_SECONDS: int = 5
     TENCENT_MAAS_EMBEDDING_MODEL: str = 'kinfra-vl-embedding-2b'
@@ -74,6 +86,17 @@ class Settings(BaseSettings):
     CAREER_PLANNING_KB_PROCESSED_DIR: str = './knowledge_base/career_planning/processed'
     SKILL_ASSESSMENT_KB_SOURCE_DIR: str = './knowledge_base/skill_assessment/source'
     SKILL_ASSESSMENT_KB_PROCESSED_DIR: str = './knowledge_base/skill_assessment/processed'
+    JOB_RECOMMENDATION_KB_SOURCE_DIR: str = './knowledge_base/job_recommendation/source'
+    JOB_RECOMMENDATION_KB_PROCESSED_DIR: str = './knowledge_base/job_recommendation/processed'
+    HR_COMMUNICATION_KB_SOURCE_DIR: str = './knowledge_base/hr_communication/source'
+    HR_COMMUNICATION_KB_PROCESSED_DIR: str = './knowledge_base/hr_communication/processed'
+    INTERVIEW_PYTHON_KB_SOURCE_DIR: str = './knowledge_base/interview_python_backend/source'
+    INTERVIEW_PYTHON_KB_PROCESSED_DIR: str = './knowledge_base/interview_python_backend/processed'
+    INTERVIEW_SECRETARY_KB_SOURCE_DIR: str = './knowledge_base/interview_secretary_studies/source'
+    INTERVIEW_SECRETARY_KB_PROCESSED_DIR: str = './knowledge_base/interview_secretary_studies/processed'
+    MOCK_INTERVIEW_MODEL: str = 'deepseek-v4-flash'
+    MOCK_INTERVIEW_MAX_OUTPUT_TOKENS: int = 4000
+    MOCK_INTERVIEW_PROMPT_VERSION: str = 'mock-interview-v1'
     QDRANT_ENABLED: bool = False
     QDRANT_LOCAL_MODE: bool = True
     QDRANT_LOCAL_PATH: str = './vector_store/qdrant'
@@ -82,8 +105,13 @@ class Settings(BaseSettings):
     QDRANT_RESUME_COLLECTION: str = 'resume_optimization_kb'
     QDRANT_CAREER_COLLECTION: str = 'career_planning_kb'
     QDRANT_SKILL_ASSESSMENT_COLLECTION: str = 'career_skill_assessment_kb'
+    QDRANT_JOB_RECOMMENDATION_COLLECTION: str = 'job_recommendation_kb'
+    QDRANT_HR_COMMUNICATION_COLLECTION: str = 'hr_communication_kb'
+    QDRANT_INTERVIEW_PYTHON_COLLECTION: str = 'interview_python_backend_kb'
+    QDRANT_INTERVIEW_SECRETARY_COLLECTION: str = 'interview_secretary_studies_kb'
     AI_RAG_MIN_VECTOR_SCORE: float = 0.25
     AI_RAG_CANDIDATE_MULTIPLIER: int = 3
+    LOCAL_KB_EMBEDDINGS: bool = True
 
     # 向量数据库
     VECTOR_DB_PATH: str = "./vector_store"
@@ -103,12 +131,34 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:3000,http://localhost:5173"
 
     # 爬虫配置
-    CRAWL_INTERVAL_HOURS: int = 24
+    CRAWL_INTERVAL_HOURS: int = 1
+    JOB_AUTO_REFRESH_ENABLED: bool = True
+    HR_MONITOR_ENABLED: bool = True
+    HR_MONITOR_INTERVAL_SECONDS: int = 30
+    JOB_REFRESH_CHECK_MINUTES: int = 15
     CRAWL_DELAY_SECONDS: float = 2.0
+    JOB_CRAWL_MAX_QUERIES: int = 6
+    JOB_CRAWL_PAGE_TIMEOUT_SECONDS: int = 20
+    JOB_CRAWL_ITEM_WAIT_SECONDS: int = 5
+    JOB_CRAWL_EARLY_STOP_RATIO: float = 0.75
     PLAYWRIGHT_HEADLESS: bool = False
     PLAYWRIGHT_CRAWL_HEADLESS: bool = True
     PLATFORM_LOGIN_TIMEOUT_SECONDS: int = 600
     PLATFORM_STATE_DIR: str = "./storage_states"
+    PLATFORM_STATE_ENCRYPTION_KEY: str = ""
+    PLAYWRIGHT_CDP_ENDPOINT: str = ""
+    PLAYWRIGHT_REMOTE_VIEW_URL: str = ""
+    WORKER_BACKEND: str = "subprocess"
+    WORKER_TASK_TIMEOUT_SECONDS: int = 900
+    WORKER_TASK_MAX_RETRIES: int = 2
+    OPERATIONS_ALERT_LOG: str = "./logs/alerts/operations.jsonl"
+    OPERATIONS_ALERT_LOG: str = "./logs/alerts/operations.jsonl"
+    PLATFORM_STATE_ENCRYPTION_KEY: str = ""
+    PLAYWRIGHT_CDP_ENDPOINT: str = ""
+    PLAYWRIGHT_REMOTE_VIEW_URL: str = ""
+    WORKER_BACKEND: str = "subprocess"
+    WORKER_TASK_TIMEOUT_SECONDS: int = 900
+    WORKER_TASK_MAX_RETRIES: int = 2
 
     @property
     def DATABASE_URL(self) -> str:
@@ -124,6 +174,18 @@ class Settings(BaseSettings):
         if self.REDIS_PASSWORD:
             return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+
+    @property
+    def tencent_maas_chat_model_list(self) -> list[str]:
+        """按配置顺序返回去重后的文本模型故障转移链。"""
+        models: list[str] = []
+        seen: set[str] = set()
+        for value in self.TENCENT_MAAS_CHAT_MODELS.split(','):
+            model = value.strip()
+            if model and model not in seen:
+                seen.add(model)
+                models.append(model)
+        return models
 
     @property
     def cors_origins_list(self) -> List[str]:

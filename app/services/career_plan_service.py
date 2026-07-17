@@ -488,6 +488,11 @@ async def execute_career_plan_task(task_id: str) -> None:
             task.status = "validating"
             task.progress = 75
             task.token_usage = token_usage or {}
+            task.model_name = (
+                generation_audit.get("used_model_name")
+                or getattr(task, "model_name", None)
+                or settings.CAREER_PLANNING_MODEL
+            )
             await db.flush()
             normalized = normalize_generated_plan(result, plan)
             task.status = "saving"
@@ -547,6 +552,7 @@ async def build_generated_career_plan(
         "retrieved_chunk_ids": state.get("retrieved_chunk_ids") or [chunk.id for chunk in chunks],
         "retrieval_audit": state.get("retrieval_audit") or [],
         "knowledge_base_version": ",".join(versions)[:100] or None,
+        "used_model_name": state.get("used_model_name"),
     }
     return result, token_usage, generation_audit
 

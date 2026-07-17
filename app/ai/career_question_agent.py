@@ -6,7 +6,11 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from app.ai.career_question_prompt import SYSTEM_PROMPT, build_user_prompt
-from app.ai.knowledge import KnowledgeChunk, SkillAssessmentKnowledgeRetriever
+from app.ai.knowledge import (
+    KnowledgeChunk,
+    SkillAssessmentKnowledgeRetriever,
+    role_knowledge_filters,
+)
 from app.ai.resume_optimization_agent import _parse_json_object
 from app.ai.tencent_maas import TencentMaaSModelGateway
 from app.core.config import settings
@@ -26,6 +30,7 @@ class CareerQuestionAgentState(TypedDict, total=False):
     retrieval_audit: list[dict]
     raw_output: str
     token_usage: dict[str, int]
+    used_model_name: str | None
     result: CareerQuestionAIOutput
 
 
@@ -87,7 +92,10 @@ class CareerQuestionAgent:
     async def _retrieve_knowledge(
         self, state: CareerQuestionAgentState
     ) -> dict[str, Any]:
-        chunks = await self.retriever.retrieve(state["retrieval_query"])
+        chunks = await self.retriever.retrieve(
+            state["retrieval_query"],
+            filters=role_knowledge_filters(state["retrieval_query"]),
+        )
         return {
             "knowledge_chunks": chunks,
             "retrieval_source": getattr(self.retriever, "last_source", "unknown"),
@@ -109,7 +117,11 @@ class CareerQuestionAgent:
             model_name=settings.CAREER_PLANNING_MODEL,
             max_tokens=settings.CAREER_QUESTION_MAX_OUTPUT_TOKENS,
         )
-        return {"raw_output": response.content, "token_usage": response.usage}
+        return {
+            "raw_output": response.content,
+            "token_usage": response.usage,
+            "used_model_name": response.model_name,
+        }
 
     @staticmethod
     async def _validate(state: CareerQuestionAgentState) -> dict[str, Any]:

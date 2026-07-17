@@ -3,7 +3,10 @@ AI Career Agent - FastAPI 后端入口文件
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 from contextlib import asynccontextmanager
+import asyncio
 
 from app.core.config import settings
 from app.core.database import engine, Base
@@ -21,6 +24,11 @@ from app.routers.resume_optimizations import saved_router as saved_resume_optimi
 from app.routers.career_plans import plan_router as career_plans_router
 from app.routers.career_plans import profile_router as career_profiles_router
 from app.routers.career_plans import execution_router as career_executions_router
+from app.routers.profile import router as profile_router
+from app.routers.hr import router as hr_router
+from app.routers.mock_interviews import router as mock_interviews_router
+from app.services.job_refresh_service import job_refresh_scheduler
+from app.services.hr_service import hr_monitor_scheduler
 
 
 @asynccontextmanager
@@ -29,7 +37,20 @@ async def lifespan(app: FastAPI):
     # 启动时：创建数据库表
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+    scheduler_task = None
+    hr_monitor_task = None
+    if settings.JOB_AUTO_REFRESH_ENABLED:
+        scheduler_task = asyncio.create_task(job_refresh_scheduler())
+    if settings.HR_MONITOR_ENABLED:
+        hr_monitor_task = asyncio.create_task(hr_monitor_scheduler())
     yield
+    for task in (scheduler_task, hr_monitor_task):
+        if task:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
     # 关闭时：清理数据库资源
     await engine.dispose()
 
@@ -62,6 +83,7 @@ app.include_router(UseLoginRouter)
 
 # 用户信息路由
 app.include_router(UseUserInfoRouter)
+app.include_router(profile_router)
 
 # Token 刷新路由
 app.include_router(refresh_router)
@@ -81,3 +103,14 @@ app.include_router(saved_resume_optimizations_router)
 app.include_router(career_profiles_router)
 app.include_router(career_plans_router)
 app.include_router(career_executions_router)
+app.include_router(hr_router)
+app.include_router(mock_interviews_router)
+
+avatar_dir = Path(settings.UPLOAD_DIR) / "avatars"
+avatar_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads/avatars", StaticFiles(directory=str(avatar_dir)), name="avatars")
+app.mount(
+    "/api/uploads/avatars",
+    StaticFiles(directory=str(avatar_dir)),
+    name="api_avatars",
+)

@@ -349,10 +349,21 @@ async def ensure_stage_progress(
 ) -> list[CareerStageProgress]:
     from app.crud.career_assessment import get_stage_progresses
 
+    tasks = tasks if tasks is not None else await get_execution_tasks(db, execution.id, user_id)
     stages = await get_stage_progresses(db, execution.id, user_id)
     if stages:
+        changed = False
+        for stage in stages:
+            if stage.status == "locked":
+                stage.status = "in_progress"
+                changed = True
+        for task in tasks:
+            if not task.is_active:
+                task.is_active = True
+                changed = True
+        if changed:
+            await db.flush()
         return stages
-    tasks = tasks if tasks is not None else await get_execution_tasks(db, execution.id, user_id)
     plan = await get_plan(db, execution.career_plan_id, user_id)
     names = [
         str(item.get("stage") or f"阶段 {index + 1}")[:200]
@@ -367,7 +378,7 @@ async def ensure_stage_progress(
     for index, name in enumerate(names, 1):
         db.add(CareerStageProgress(
             user_id=user_id, execution_plan_id=execution.id, stage=name,
-            stage_order=index, status="in_progress" if index == 1 else "locked",
+            stage_order=index, status="in_progress",
         ))
         stage_tasks = [
             item for item in tasks
@@ -379,7 +390,7 @@ async def ensure_stage_progress(
         for order, task in enumerate(stage_tasks):
             task.stage_order = index
             task.task_order = order
-            task.is_active = index == 1
+            task.is_active = True
     await db.flush()
     return await get_stage_progresses(db, execution.id, user_id)
 
@@ -407,7 +418,7 @@ async def build_execution_overview(
     current_week = min(max_week, elapsed_days // 7 + 1)
     week_start = execution.start_date + timedelta(days=(current_week - 1) * 7)
     week_end = week_start + timedelta(days=6)
-    visible = [task for task in tasks if task.is_active]
+    visible = tasks
     today_tasks = [task for task in visible if task.planned_date == today]
     week_tasks = [task for task in visible if task.planned_date and week_start <= task.planned_date <= week_end]
     stage_row = next((item for item in stages if item.status not in ("locked", "passed")), stages[-1] if stages else None)
@@ -433,9 +444,10 @@ async def build_execution_overview(
         "current_streak": current_streak, "longest_streak": longest_streak,
         "today_tasks": [serialize_execution_task(item) for item in today_tasks],
         "week_tasks": [serialize_execution_task(item) for item in week_tasks],
+        "all_tasks": [serialize_execution_task(item) for item in tasks],
         "recent_checkins": [{"id": item.id, "task_id": item.task_id, "task_title": title, "status": item.status, "note": item.note, "checked_in_at": item.checked_in_at} for item, title in recent],
         "today_completed": today_completed,
-        "can_advance": today_completed and bool(future) and len(ahead_today) < 3,
+        "can_advance": bool(future),
         "next_task_available": bool(future), "ahead_task_count": len(ahead_today),
         "ahead_days": max(((item.original_planned_date - today).days for item in ahead_today if item.original_planned_date), default=0),
         "stage_progress": round(stage_done * 100 / len(required_stage)) if required_stage else 0,
@@ -465,14 +477,12 @@ async def advance_execution_task(
         raise CareerPlanError("执行计划不存在", 404)
     if execution.status != "active":
         raise CareerPlanError("当前职业规划不在执行中", 409)
-    overview = await build_execution_overview(db, execution=execution, user_id=user_id)
-    if not overview["today_completed"]:
-        raise CareerPlanError("完成今日全部必做任务后才能提前推进", 409)
-    if overview["ahead_task_count"] >= 3:
-        raise CareerPlanError("每日最多提前推进 3 个任务", 409)
     tasks = await get_execution_tasks(db, execution.id, user_id)
     today = today_in_china()
-    next_task = next((item for item in tasks if item.is_active and item.status == "pending" and item.planned_date and item.planned_date > today), None)
+    next_task = next((
+        item for item in tasks
+        if item.status == "pending" and item.planned_date and item.planned_date > today
+    ), None)
     if next_task is None:
         raise CareerPlanError("暂无可提前推进的任务", 409)
     next_task.original_planned_date = next_task.original_planned_date or next_task.planned_date
@@ -481,3 +491,41 @@ async def advance_execution_task(
     next_task.advanced_at = utc_now_naive()
     await db.flush()
     return {"overview": await build_execution_overview(db, execution=execution, user_id=user_id), "advanced_task": serialize_execution_task(next_task)}
+
+
+async def complete_all_execution_tasks(
+    db: AsyncSession, *, user_id: int, execution_plan_id: int
+) -> dict:
+    """Complete every remaining task without date, week, stage or daily limits."""
+    await db.execute(select(User.id).where(User.id == user_id).with_for_update())
+    execution = await get_execution_by_id(db, execution_plan_id, user_id)
+    if execution is None:
+        raise CareerPlanError("执行计划不存在", 404)
+    if execution.status != "active":
+        raise CareerPlanError("当前职业规划不在执行中", 409)
+
+    tasks = await get_execution_tasks(db, execution.id, user_id)
+    now = utc_now_naive()
+    completed_count = 0
+    for task in tasks:
+        if task.status == "completed":
+            continue
+        task.status = "completed"
+        task.checked_in_at = now
+        task.is_active = True
+        task.checkin_note = task.checkin_note or "一次性完成全部计划任务"
+        await create_checkin(db, CareerPlanCheckin(
+            user_id=user_id,
+            task_id=task.id,
+            status="completed",
+            note=task.checkin_note,
+            checked_in_at=now,
+        ))
+        completed_count += 1
+    await db.flush()
+    return {
+        "completed_count": completed_count,
+        "overview": await build_execution_overview(
+            db, execution=execution, user_id=user_id
+        ),
+    }

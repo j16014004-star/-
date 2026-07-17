@@ -15,19 +15,44 @@ class WorkerLaunchError(RuntimeError):
     """Raised when a browser worker process cannot be started."""
 
 
-def launch_login_worker(session_id: str) -> int:
+def launch_login_worker(session_id: str) -> int | str:
     return _launch_worker("app.workers.platform_login_worker", session_id)
 
 
-def launch_recommendation_worker(task_id: str) -> int:
+def launch_recommendation_worker(task_id: str) -> int | str:
     return _launch_worker("app.workers.recommendation_worker", task_id)
 
 
-def launch_ai_task_worker(task_id: str) -> int:
+def launch_ai_task_worker(task_id: str) -> int | str:
     return _launch_worker('app.workers.ai_task_worker', task_id)
 
 
-def _launch_worker(module: str, identifier: str) -> int:
+def launch_hr_action_worker(action_id: int) -> int | str:
+    return _launch_worker('app.workers.hr_action_worker', str(action_id))
+
+
+def launch_hr_monitor_worker(workspace_id: int) -> int | str:
+    return _launch_worker('app.workers.hr_monitor_worker', str(workspace_id))
+
+
+def _launch_worker(module: str, identifier: str) -> int | str:
+    from app.core.config import settings
+
+    if settings.WORKER_BACKEND.strip().lower() == "celery":
+        try:
+            from app.workers.celery_app import execute_worker
+
+            result = execute_worker.apply_async(
+                args=[module, identifier],
+                time_limit=max(60, settings.WORKER_TASK_TIMEOUT_SECONDS),
+                soft_time_limit=max(30, settings.WORKER_TASK_TIMEOUT_SECONDS - 30),
+            )
+            return result.id
+        except Exception as exc:
+            raise WorkerLaunchError(f"无法提交 Celery worker 任务: {exc}") from exc
+    if settings.WORKER_BACKEND.strip().lower() != "subprocess":
+        raise WorkerLaunchError("WORKER_BACKEND 仅支持 celery 或 subprocess")
+
     WORKER_LOG_DIR.mkdir(parents=True, exist_ok=True)
     safe_identifier = "".join(
         char if char.isalnum() or char in "-_" else "_" for char in identifier

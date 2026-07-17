@@ -1,9 +1,9 @@
 """推荐任务启动编排服务。"""
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from pathlib import Path
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.crud.job_recommendation import (
@@ -13,8 +13,17 @@ from app.crud.job_recommendation import (
     get_login_session,
 )
 from app.crud.resume import get_resume_by_id
+from app.crud.resume_optimization import get_owned_saved_optimization_version
 from app.models.job import JobPlatformLoginSession, JobRecommendTask
+from app.models.user import User
+from app.services.job_recommendation_rules import (
+    build_search_keywords,
+    infer_target_city,
+    infer_target_role,
+    normalize_city,
+)
 from app.services.skills_service import get_resume_skills
+from app.services.platform_session_service import is_plausible_storage_state
 from app.workers.process_launcher import WorkerLaunchError, launch_recommendation_worker
 
 
@@ -51,13 +60,26 @@ def is_active_task(task: JobRecommendTask | None) -> bool:
     return bool(task and task.status in ACTIVE_TASK_STATUSES)
 
 
+def task_uses_selection(
+    task: JobRecommendTask,
+    resume_id: int,
+    resume_source: str,
+    resume_optimization_id: int | None,
+) -> bool:
+    return (
+        task.resume_id == resume_id
+        and task.resume_source == resume_source
+        and task.resume_optimization_id == resume_optimization_id
+    )
+
+
 def is_login_state_ready(session: JobPlatformLoginSession) -> bool:
     now = utc_now_naive()
     if session.status != "logged_in" or session.expires_at < now:
         return False
     if not session.storage_state_ref:
         return False
-    return Path(session.storage_state_ref).is_file()
+    return is_plausible_storage_state(session.storage_state_ref, session.source)
 
 
 async def ensure_recommendation_task(
@@ -68,20 +90,37 @@ async def ensure_recommendation_task(
     source: str,
     login_session_id: str,
     limit: int = 20,
+    target_role: str | None = None,
+    target_city: str | None = None,
+    resume_source: str = "original",
+    resume_optimization_id: int | None = None,
     launch_if_ready: bool = True,
+    force_refresh: bool = False,
 ) -> RecommendationTaskStartResult:
     """确保当前用户在该平台有一个推荐任务，并在登录态可用时启动 worker。"""
+    # 串行化同一用户的启动请求，避免前端重复点击创建多个活动任务。
+    await db.execute(select(User.id).where(User.id == user_id).with_for_update())
     session = await get_login_session(db, login_session_id, user_id)
     if not session or session.source != source:
         raise RecommendationStartError("登录会话不存在或不属于当前平台", 409)
 
+    # 网络重试或连续点击必须复用正在运行的任务，不能把健康任务改成失败。
+    # 用户锁保证并发请求串行化，第二个请求会在这里看到第一个活动任务。
     session_task = await get_latest_recommend_task_by_login_session(db, login_session_id, user_id)
     if is_active_task(session_task):
+        if not task_uses_selection(session_task, resume_id, resume_source, resume_optimization_id):
+            raise RecommendationStartError(
+                "该登录会话已有其他简历的推荐任务正在执行，请等待完成后重试", 409,
+            )
         launched = await launch_task_if_ready(db, session, session_task, launch_if_ready)
         return RecommendationTaskStartResult(session_task, created=False, launched=launched)
 
     active = await get_active_recommend_task(db, user_id, source)
     if active:
+        if not task_uses_selection(active, resume_id, resume_source, resume_optimization_id):
+            raise RecommendationStartError(
+                "当前平台已有其他简历的推荐任务正在执行，请等待完成后重试", 409,
+            )
         launched = False
         if active.login_session_id == session.id:
             launched = await launch_task_if_ready(db, session, active, launch_if_ready)
@@ -91,19 +130,54 @@ async def ensure_recommendation_task(
     if not resume or resume.status != "completed":
         raise RecommendationStartError("简历不存在、无权访问或尚未处理完成", 404)
 
-    skills = get_resume_skills(resume.structured_data, resume.extracted_text)
+    selected_text = resume.extracted_text
+    selected_structured_data = resume.structured_data
+    optimized_version = None
+    if resume_source == "optimized":
+        if resume_optimization_id is None:
+            raise RecommendationStartError("选择优化简历时必须提交优化简历版本", 422)
+        optimized_version = await get_owned_saved_optimization_version(
+            db, optimization_id=resume_optimization_id, user_id=user_id,
+        )
+        if not optimized_version or optimized_version.resume_id != resume_id:
+            raise RecommendationStartError("优化简历不存在、未保存或不属于当前原始简历", 404)
+        selected_text = optimized_version.optimized_content
+        selected_structured_data = None
+    elif resume_source != "original" or resume_optimization_id is not None:
+        raise RecommendationStartError("简历来源参数无效", 422)
+
+    skills = get_resume_skills(selected_structured_data, selected_text)
     if not skills:
         raise RecommendationStartError("简历未解析出可用于推荐的技能或岗位关键词", 422)
+
+    resolved_role = (
+        " ".join(target_role.split()).strip() if target_role else None
+    ) or (optimized_version.target_role if optimized_version else None) or infer_target_role(
+        selected_structured_data, selected_text, skills,
+    )
+    normalized_selected_city = normalize_city(target_city)
+    if target_city and not normalized_selected_city:
+        raise RecommendationStartError("当前暂不支持所选城市，请从城市下拉列表中选择", 422)
+    resolved_city = normalized_selected_city or infer_target_city(
+        resume.structured_data, resume.extracted_text,
+    )
+    keywords = build_search_keywords(resolved_role, skills)
+    if not keywords:
+        raise RecommendationStartError("无法生成有效的岗位搜索词，请明确选择目标岗位", 422)
 
     safe_limit = max(1, min(limit, 50))
     task = JobRecommendTask(
         id=str(uuid4()),
         user_id=user_id,
         resume_id=resume_id,
+        resume_source=resume_source,
+        resume_optimization_id=resume_optimization_id,
         login_session_id=session.id,
         source=source,
+        target_role=resolved_role,
+        target_city=resolved_city,
         extracted_skills=skills,
-        search_keywords=skills[:5],
+        search_keywords=keywords,
         requested_limit=safe_limit,
     )
     await create_recommend_task(db, task)

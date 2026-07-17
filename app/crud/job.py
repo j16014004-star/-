@@ -93,13 +93,21 @@ async def create_application(
     job_id: int,
     resume_id: int,
     cover_letter: str | None = None,
+    resume_source: str = "original",
+    resume_optimization_id: int | None = None,
+    apply_type: str = "manual",
+    delivery_evidence: dict | None = None,
 ) -> JobApplication:
     """创建投递记录"""
     app = JobApplication(
         user_id=user_id,
         job_id=job_id,
         resume_id=resume_id,
+        resume_source=resume_source,
+        resume_optimization_id=resume_optimization_id,
         cover_letter=cover_letter,
+        apply_type=apply_type,
+        delivery_evidence=delivery_evidence,
     )
     db.add(app)
     await db.flush()

@@ -12,7 +12,8 @@ import app.models  # noqa: F401 - load all ORM tables for FK resolution
 from app.core.config import settings
 from app.core.database import async_session, engine
 from app.models.job import JobPlatformLoginSession
-from app.services.platform_session_service import LOGIN_URLS
+from app.services.platform_session_service import LOGIN_URLS, encrypt_storage_state_file
+from app.services.operational_alert_service import emit_operational_alert
 from app.services.recommendation_start_service import (
     RecommendationStartError,
     ensure_recommendation_task,
@@ -90,6 +91,8 @@ async def auto_start_recommendation(session_id: str) -> None:
                 db,
                 user_id=session.user_id,
                 resume_id=session.resume_id,
+                resume_source=session.resume_source,
+                resume_optimization_id=session.resume_optimization_id,
                 source=session.source,
                 login_session_id=session.id,
                 limit=20,
@@ -99,12 +102,27 @@ async def auto_start_recommendation(session_id: str) -> None:
         await db.commit()
 
 
-def is_logged_in(context: BrowserContext) -> bool:
+async def is_logged_in(context: BrowserContext) -> bool:
     pages = [page for page in context.pages if not page.is_closed()]
     if not pages:
         return False
     url = pages[-1].url.lower()
-    return all(marker not in url for marker in ("login", "passport", "verify", "antibot"))
+    if not all(marker not in url for marker in ("login", "passport", "verify", "antibot")):
+        return False
+    cookies = await context.cookies()
+    auth_names = {"id58", "PPU", "www58com", "58cooper", "passportAccount"}
+    return any(
+        cookie.get("name") in auth_names and "58.com" in (cookie.get("domain") or "")
+        for cookie in cookies
+    )
+
+
+async def session_still_waiting(session_id: str) -> bool:
+    async with async_session() as db:
+        status = (await db.execute(
+            select(JobPlatformLoginSession.status).where(JobPlatformLoginSession.id == session_id)
+        )).scalar_one_or_none()
+        return status == "waiting_login"
 
 
 async def run_login(session_id: str) -> None:
@@ -132,13 +150,20 @@ async def run_login(session_id: str) -> None:
     context = None
     try:
         playwright = await async_playwright().start()
-        browser = await playwright.chromium.launch(headless=settings.PLAYWRIGHT_HEADLESS)
+        if settings.PLAYWRIGHT_CDP_ENDPOINT.strip():
+            browser = await playwright.chromium.connect_over_cdp(
+                settings.PLAYWRIGHT_CDP_ENDPOINT.strip()
+            )
+        else:
+            browser = await playwright.chromium.launch(headless=settings.PLAYWRIGHT_HEADLESS)
         context = await browser.new_context()
         page = await context.new_page()
         await page.goto(LOGIN_URLS[session.source], wait_until="domcontentloaded")
         await prefer_qr_login(page)
 
         while utc_now_naive() < expires_at:
+            if not await session_still_waiting(session_id):
+                return
             pages = [item for item in context.pages if not item.is_closed()]
             if not pages:
                 await update_login_session(
@@ -146,16 +171,26 @@ async def run_login(session_id: str) -> None:
                     status="failed",
                     error_message="登录浏览器窗口已关闭，请重新登录",
                 )
+                emit_operational_alert(
+                    category="platform_login_browser_closed",
+                    message="登录浏览器窗口已关闭，请重新登录",
+                    severity="warning",
+                    context={"session_id": session_id, "user_id": session.user_id},
+                )
                 return
-            if is_logged_in(context):
+            if await is_logged_in(context):
                 state_dir = Path(settings.PLATFORM_STATE_DIR).resolve() / str(session.user_id)
                 state_dir.mkdir(parents=True, exist_ok=True)
-                state_path = state_dir / f"{session.source}.json"
-                await context.storage_state(path=str(state_path))
+                plain_state_path = state_dir / f"{session.source}.json.tmp"
+                state_path = state_dir / f"{session.source}.enc"
+                await context.storage_state(path=str(plain_state_path))
+                encrypt_storage_state_file(plain_state_path, state_path)
                 await update_login_session(
                     session_id,
                     status="logged_in",
                     storage_state_ref=str(state_path),
+                    manual_login_verified=True,
+                    manual_login_verified_at=utc_now_naive(),
                     error_message=None,
                 )
                 await auto_start_recommendation(session_id)
@@ -167,11 +202,23 @@ async def run_login(session_id: str) -> None:
             status="expired",
             error_message="登录超时，请重新发起登录",
         )
+        emit_operational_alert(
+            category="platform_login_timeout",
+            message="登录超时，请重新发起登录",
+            severity="warning",
+            context={"session_id": session_id, "user_id": session.user_id},
+        )
     except Exception as exc:
+        safe_error = f"无法启动或完成登录浏览器: {exc}"[:1000]
         await update_login_session(
             session_id,
             status="failed",
-            error_message=f"无法启动或完成本地登录浏览器: {exc}",
+            error_message=safe_error,
+        )
+        emit_operational_alert(
+            category="platform_login_worker_failed",
+            message=safe_error,
+            context={"session_id": session_id, "user_id": session.user_id},
         )
     finally:
         if context is not None:

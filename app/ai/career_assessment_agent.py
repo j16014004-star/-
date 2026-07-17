@@ -3,7 +3,11 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from app.ai.knowledge import SkillAssessmentKnowledgeRetriever
+from app.ai.knowledge import (
+    SkillAssessmentKnowledgeRetriever,
+    infer_knowledge_role,
+    role_knowledge_filters,
+)
 from app.ai.resume_optimization_agent import _parse_json_object
 from app.ai.tencent_maas import TencentMaaSModelGateway
 from app.core.config import settings
@@ -17,6 +21,7 @@ class AssessmentState(TypedDict, total=False):
     knowledge_chunks: list
     raw_output: str
     token_usage: dict
+    used_model_name: str | None
     retrieval_source: str
     retrieval_error: str | None
     retrieval_audit: list[dict]
@@ -42,7 +47,7 @@ class CareerAssessmentAgent:
 
     async def _retrieve(self, state):
         chunks = await self.retriever.retrieve(
-            state["query"], filters={"role": "python_backend"}
+            state["query"], filters=role_knowledge_filters(state["query"])
         )
         return {
             "knowledge_chunks": chunks,
@@ -53,9 +58,16 @@ class CareerAssessmentAgent:
 
     async def _generate(self, state):
         chunks = "\n".join(f"- {item.content}" for item in state.get("knowledge_chunks") or [])
+        role = infer_knowledge_role(state.get("query"), state.get("context"))
         if state["mode"] == "generate":
+            question_types = (
+                "覆盖选择题(choice)、多选题(multiple)和基于办公情境的简答题(short)，"
+                "秘书学方向禁止生成代码题(code)。"
+                if role == "secretary_studies"
+                else "覆盖选择题(choice)、多选题(multiple)、简答题(short)和代码分析题(code)。"
+            )
             instruction = (
-                "生成6到10道阶段考核题，覆盖选择题(choice)、多选题(multiple)、简答题(short)和代码分析题(code)。"
+                f"生成6到10道与当前目标岗位一致的阶段考核题，{question_types}"
                 "总分尽量为100。客观题必须给correct_answer，主观题必须给reference_answer和rubric。"
                 "禁止要求或输出密码、Token、API Key等敏感信息。只返回符合CareerAssessmentGenerationOutput的JSON。"
             )
@@ -70,7 +82,11 @@ class CareerAssessmentAgent:
             model_name=settings.CAREER_PLANNING_MODEL,
             max_tokens=3000,
         )
-        return {"raw_output": response.content, "token_usage": response.usage}
+        return {
+            "raw_output": response.content,
+            "token_usage": response.usage,
+            "used_model_name": response.model_name,
+        }
 
     async def _validate(self, state):
         model = CareerAssessmentGenerationOutput if state["mode"] == "generate" else CareerAssessmentEvaluationOutput

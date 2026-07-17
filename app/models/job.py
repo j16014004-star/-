@@ -115,6 +115,12 @@ class JobApplication(Base):
     resume_id: Mapped[int] = mapped_column(
         BigInteger, nullable=False, comment="投递使用的简历ID",
     )
+    resume_source: Mapped[str] = mapped_column(
+        String(20), default="original", nullable=False, comment="original/optimized",
+    )
+    resume_optimization_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("resume_optimization_versions.id", ondelete="SET NULL"), nullable=True,
+    )
 
     cover_letter: Mapped[str | None] = mapped_column(
         Text, nullable=True, comment="求职信",
@@ -126,12 +132,19 @@ class JobApplication(Base):
     apply_type: Mapped[str] = mapped_column(
         String(20), default="manual", nullable=False, comment="投递类型: manual",
     )
+    delivery_evidence: Mapped[dict | None] = mapped_column(
+        JSON, nullable=True, comment="平台投递使用的简历文件、哈希和成功证据",
+    )
 
     applied_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False,
+    )
+
+    __table_args__ = (
+        UniqueConstraint("user_id", "job_id", name="uq_job_applications_user_job"),
     )
 
 
@@ -149,6 +162,10 @@ class JobPlatformLoginSession(Base):
         BigInteger, ForeignKey("resumes.id", ondelete="CASCADE"),
         nullable=False, comment="关联简历ID",
     )
+    resume_source: Mapped[str] = mapped_column(String(20), default="original", nullable=False)
+    resume_optimization_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("resume_optimization_versions.id", ondelete="SET NULL"), nullable=True,
+    )
     source: Mapped[str] = mapped_column(String(20), nullable=False, comment="招聘平台")
     status: Mapped[str] = mapped_column(
         String(20), default="waiting_login", nullable=False,
@@ -162,6 +179,10 @@ class JobPlatformLoginSession(Base):
     )
     expires_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, index=True)
     consumed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    manual_login_verified: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, comment="用户本人在受控浏览器完成登录"
+    )
+    manual_login_verified_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc), nullable=False,
     )
@@ -185,6 +206,10 @@ class JobRecommendTask(Base):
         BigInteger, ForeignKey("resumes.id", ondelete="CASCADE"),
         nullable=False, index=True, comment="简历ID",
     )
+    resume_source: Mapped[str] = mapped_column(String(20), default="original", nullable=False)
+    resume_optimization_id: Mapped[int | None] = mapped_column(
+        BigInteger, ForeignKey("resume_optimization_versions.id", ondelete="SET NULL"), nullable=True,
+    )
     login_session_id: Mapped[str | None] = mapped_column(
         String(36), ForeignKey("job_platform_login_sessions.id", ondelete="SET NULL"),
         nullable=True, comment="登录会话ID",
@@ -192,16 +217,20 @@ class JobRecommendTask(Base):
     source: Mapped[str] = mapped_column(String(20), nullable=False, comment="招聘平台")
     status: Mapped[str] = mapped_column(
         String(20), default="pending", nullable=False,
-        comment="pending/crawling/matching/success/failed/need_login",
+        comment="pending/crawling/matching/success/no_results/failed/need_login",
     )
     progress: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    target_role: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    target_city: Mapped[str | None] = mapped_column(String(50), nullable=True)
     extracted_skills: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     search_keywords: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     requested_limit: Mapped[int] = mapped_column(Integer, default=20, nullable=False)
     total_found: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_saved: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     total_matched: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    failure_code: Mapped[str | None] = mapped_column(String(50), nullable=True)
     error_message: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    crawl_diagnostics: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
@@ -246,4 +275,3 @@ class JobRecommendResult(Base):
     __table_args__ = (
         UniqueConstraint("task_id", "job_id", name="uq_recommend_task_job"),
     )
-

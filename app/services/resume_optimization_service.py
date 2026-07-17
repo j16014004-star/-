@@ -180,6 +180,11 @@ async def execute_resume_optimization_task(task_id: str) -> None:
             task.status = 'validating'
             task.progress = 75
             task.token_usage = state.get('token_usage') or {}
+            task.model_name = (
+                state.get('used_model_name')
+                or getattr(task, 'model_name', None)
+                or settings.RESUME_OPTIMIZATION_MODEL
+            )
             await db.commit()
 
         result = state['result']
@@ -217,7 +222,7 @@ async def execute_resume_optimization_task(task_id: str) -> None:
                 retrieval_source=state.get('retrieval_source') or 'unknown',
                 retrieval_error=state.get('retrieval_error'),
                 retrieval_audit=state.get('retrieval_audit') or [],
-                model_name=settings.RESUME_OPTIMIZATION_MODEL,
+                model_name=state.get('used_model_name') or settings.RESUME_OPTIMIZATION_MODEL,
                 embedding_model=(settings.TENCENT_MAAS_EMBEDDING_MODEL if settings.QDRANT_ENABLED else None),
                 prompt_version=settings.AI_PROMPT_VERSION,
                 resume_content_hash=resume_hash,

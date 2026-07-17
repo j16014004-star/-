@@ -248,6 +248,11 @@ async def execute_stage_assessment_task(task_id: str) -> None:
                 },
             }
             task.status, task.progress, task.result_id, task.token_usage = "success", 100, assessment.id, state.get("token_usage")
+            task.model_name = (
+                state.get("used_model_name")
+                or getattr(task, "model_name", None)
+                or settings.CAREER_PLANNING_MODEL
+            )
             task.finished_at = utc_now_naive()
             await db.commit()
     except Exception as exc:
@@ -300,6 +305,11 @@ async def execute_stage_assessment_evaluation_task(task_id: str) -> None:
             stage = next(item for item in stages if item.id == assessment.stage_progress_id)
             stage.status = assessment.status
             task.status, task.progress, task.result_id, task.token_usage = "success", 100, assessment.id, state.get("token_usage")
+            task.model_name = (
+                state.get("used_model_name")
+                or getattr(task, "model_name", None)
+                or settings.CAREER_PLANNING_MODEL
+            )
             task.finished_at = utc_now_naive(); await db.commit()
     except Exception as exc:
         await _mark_failed(task_id, str(exc)); raise

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import verify_token, create_access_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.crud.refresh_token import get_refresh_token_by_token, update_last_used_at
+from app.models.user import User
 
 
 async def refresh_access_token(db: AsyncSession, refresh_token_str: str) -> tuple[str, int] | None:
@@ -63,10 +64,14 @@ async def refresh_access_token(db: AsyncSession, refresh_token_str: str) -> tupl
 
     if not user_id or not username:
         return None
+    user = await db.get(User, int(user_id))
+    if not user or user.is_deleted or not user.is_active or user.auth_version != int(payload.get("ver", 0)):
+        return None
 
     new_access_token = create_access_token(data={
         "sub": str(user_id),
-        "username": username
+        "username": username,
+        "ver": user.auth_version,
     })
 
     # 7. 更新 last_used_at

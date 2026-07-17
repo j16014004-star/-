@@ -7,7 +7,11 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, START, StateGraph
 
-from app.ai.knowledge import KnowledgeChunk, ResumeKnowledgeRetriever
+from app.ai.knowledge import (
+    KnowledgeChunk,
+    ResumeKnowledgeRetriever,
+    role_knowledge_filters,
+)
 from app.ai.resume_optimization_prompt import SYSTEM_PROMPT, build_user_prompt
 from app.ai.tencent_maas import TencentMaaSModelGateway
 from app.schemas.resume_optimization import ResumeOptimizationAIOutput
@@ -25,6 +29,7 @@ class ResumeAgentState(TypedDict, total=False):
     retrieval_audit: list[dict]
     raw_output: str
     token_usage: dict[str, int]
+    used_model_name: str | None
     result: ResumeOptimizationAIOutput
 
 
@@ -76,7 +81,10 @@ class ResumeOptimizationAgent:
         return {'retrieval_query': query}
 
     async def _retrieve_knowledge(self, state: ResumeAgentState) -> dict[str, Any]:
-        chunks = await self.retriever.retrieve(state['retrieval_query'])
+        chunks = await self.retriever.retrieve(
+            state['retrieval_query'],
+            filters=role_knowledge_filters(state['retrieval_query']),
+        )
         return {
             'knowledge_chunks': chunks,
             'retrieval_source': getattr(self.retriever, 'last_source', 'unknown'),
@@ -96,7 +104,11 @@ class ResumeOptimizationAgent:
             user_prompt=prompt,
             max_tokens=state.get('max_output_tokens'),
         )
-        return {'raw_output': response.content, 'token_usage': response.usage}
+        return {
+            'raw_output': response.content,
+            'token_usage': response.usage,
+            'used_model_name': response.model_name,
+        }
 
     @staticmethod
     async def _validate(state: ResumeAgentState) -> dict[str, Any]:

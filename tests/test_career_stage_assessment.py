@@ -8,6 +8,7 @@ def test_stage_assessment_routes_are_registered():
     paths = app.openapi()["paths"]
     expected = {
         "/api/career-plan-executions/{execution_plan_id}/advance",
+        "/api/career-plan-executions/{execution_plan_id}/complete-all",
         "/api/career-plan-executions/{execution_plan_id}/assessments",
         "/api/career-plan-executions/assessments/{assessment_id}",
         "/api/career-plan-executions/assessments/{assessment_id}/submit",

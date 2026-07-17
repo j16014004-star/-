@@ -6,7 +6,12 @@ from typing import Any, TypedDict
 from langgraph.graph import END, START, StateGraph
 
 from app.ai.career_planning_prompt import SYSTEM_PROMPT, build_user_prompt
-from app.ai.knowledge import CareerKnowledgeRetriever, KnowledgeChunk
+from app.ai.knowledge import (
+    CareerKnowledgeRetriever,
+    KnowledgeChunk,
+    infer_knowledge_role,
+    role_knowledge_filters,
+)
 from app.ai.resume_optimization_agent import _parse_json_object
 from app.ai.tencent_maas import TencentMaaSModelGateway
 from app.core.config import settings
@@ -26,6 +31,7 @@ class CareerPlanningAgentState(TypedDict, total=False):
     retrieval_audit: list[dict]
     raw_output: str
     token_usage: dict[str, int]
+    used_model_name: str | None
     result: CareerPlanAIOutput
 
 
@@ -72,8 +78,15 @@ class CareerPlanningAgent:
         target_role = (
             request_payload.get("preferred_target_role")
             or profile.get("preferred_target_role")
-            or "Python 后端工程师"
         )
+        if not target_role:
+            role = infer_knowledge_role(
+                profile.get("major"),
+                profile.get("education"),
+                profile.get("skills"),
+                profile.get("work_experience"),
+            )
+            target_role = "秘书/行政助理" if role == "secretary_studies" else "Python 后端工程师"
         skills = " ".join(profile.get("skills") or [])
         projects = " ".join(
             f"{item.get('name', '')} {item.get('description', '')} {item.get('role', '')}"
@@ -83,13 +96,16 @@ class CareerPlanningAgent:
         feedback = str(request_payload.get("feedback") or "")
         focus_areas = " ".join(request_payload.get("focus_areas") or [])
         query = (
-            f"{target_role} 职业规划 Python 后端工程师 FastAPI SQLAlchemy MySQL Redis Docker "
+            f"{target_role} 职业规划 专业能力 岗位要求 职业发展 "
             f"求职 学习计划 技能差距 项目包装 {skills} {projects} {feedback} {focus_areas}"
         )
         return {"retrieval_query": query}
 
     async def _retrieve_knowledge(self, state: CareerPlanningAgentState) -> dict[str, Any]:
-        chunks = await self.retriever.retrieve(state["retrieval_query"])
+        chunks = await self.retriever.retrieve(
+            state["retrieval_query"],
+            filters=role_knowledge_filters(state["retrieval_query"]),
+        )
         return {
             "knowledge_chunks": chunks,
             "retrieval_source": getattr(self.retriever, "last_source", "unknown"),
@@ -111,7 +127,11 @@ class CareerPlanningAgent:
             model_name=settings.CAREER_PLANNING_MODEL,
             max_tokens=state.get("max_output_tokens"),
         )
-        return {"raw_output": response.content, "token_usage": response.usage}
+        return {
+            "raw_output": response.content,
+            "token_usage": response.usage,
+            "used_model_name": response.model_name,
+        }
 
     @staticmethod
     async def _validate(state: CareerPlanningAgentState) -> dict[str, Any]:

@@ -63,14 +63,43 @@ async def get_recommend_task(
 
 
 async def get_active_recommend_task(
-    db: AsyncSession, user_id: int, source: str
+    db: AsyncSession, user_id: int, source: str, resume_id: int | None = None
 ) -> JobRecommendTask | None:
+    query = select(JobRecommendTask).where(
+        JobRecommendTask.user_id == user_id,
+        JobRecommendTask.source == source,
+        JobRecommendTask.status.in_(("pending", "crawling", "matching")),
+    )
+    if resume_id is not None:
+        query = query.where(JobRecommendTask.resume_id == resume_id)
     result = await db.execute(
-        select(JobRecommendTask).where(
-            JobRecommendTask.user_id == user_id,
-            JobRecommendTask.source == source,
-            JobRecommendTask.status.in_(("pending", "crawling", "matching")),
-        )
+        query.order_by(JobRecommendTask.created_at.desc()).limit(1)
+    )
+    return result.scalar_one_or_none()
+
+
+async def get_latest_recommend_task(
+    db: AsyncSession,
+    user_id: int,
+    source: str,
+    resume_id: int | None = None,
+    resume_source: str | None = None,
+    resume_optimization_id: int | None = None,
+) -> JobRecommendTask | None:
+    query = select(JobRecommendTask).where(
+        JobRecommendTask.user_id == user_id,
+        JobRecommendTask.source == source,
+    )
+    if resume_id is not None:
+        query = query.where(JobRecommendTask.resume_id == resume_id)
+    if resume_source is not None:
+        query = query.where(JobRecommendTask.resume_source == resume_source)
+        if resume_source == "optimized":
+            query = query.where(JobRecommendTask.resume_optimization_id == resume_optimization_id)
+        else:
+            query = query.where(JobRecommendTask.resume_optimization_id.is_(None))
+    result = await db.execute(
+        query.order_by(JobRecommendTask.created_at.desc()).limit(1)
     )
     return result.scalar_one_or_none()
 
@@ -119,6 +148,12 @@ async def get_task_results(
         .where(
             JobRecommendResult.task_id == task_id,
             JobRecommendResult.user_id == user_id,
+            Job.is_active.is_(True),
+            Job.source_url.is_not(None),
+            Job.source_url.ilike("http%"),
+            Job.source_url.ilike("%58.com/%"),
+            Job.source_url.not_ilike("%/quanzhizhaopin%"),
+            Job.source_url.not_ilike("%/job.shtml%"),
         )
     )
     count_query = select(func.count()).select_from(base.subquery())

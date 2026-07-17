@@ -12,6 +12,7 @@ from app.crud.resume import get_resume_by_id, get_user_resumes
 from app.models.resume import Resume
 from app.models.user import User
 from app.services.resume_service import remove_resume, upload_resume
+from app.services.job_refresh_service import trigger_refresh_for_new_resume
 from app.utils.file_handler import get_user_file_path
 from app.utils.resume_parser import normalize_structured_data_for_frontend
 
@@ -98,10 +99,18 @@ async def upload_resume_file(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    recommendation_refresh = None
+    if resume.status == "completed":
+        recommendation_refresh = await trigger_refresh_for_new_resume(
+            db, user_id=current_user.id, resume=resume,
+        )
+
+    data = serialize_resume(resume)
+    data["recommendation_refresh"] = recommendation_refresh
     return {
         "code": 200,
         "message": "上传成功",
-        "data": serialize_resume(resume),
+        "data": data,
     }
 
 

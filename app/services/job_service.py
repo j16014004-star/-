@@ -178,6 +178,8 @@ async def apply_job(
     job_id: int,
     resume_id: int,
     cover_letter: str | None = None,
+    resume_source: str = "original",
+    resume_optimization_id: int | None = None,
 ) -> dict:
     """投递岗位"""
     # 校验岗位存在
@@ -190,13 +192,29 @@ async def apply_job(
     if not resume:
         raise HTTPException(status_code=404, detail="简历不存在或不属于当前用户")
 
+    if resume_source == "optimized":
+        from app.crud.resume_optimization import get_owned_saved_optimization_version
+        version = await get_owned_saved_optimization_version(
+            db, optimization_id=resume_optimization_id, user_id=user_id,
+        ) if resume_optimization_id else None
+        if not version or version.resume_id != resume_id:
+            raise HTTPException(status_code=404, detail="优化简历不存在、未保存或不属于当前原始简历")
+    elif resume_source != "original" or resume_optimization_id is not None:
+        raise HTTPException(status_code=422, detail="简历来源参数无效")
+
     # 创建投递
-    app = await create_application(db, user_id, job_id, resume_id, cover_letter)
+    app = await create_application(
+        db, user_id, job_id, resume_id, cover_letter,
+        resume_source, resume_optimization_id,
+    )
     return {
         "id": app.id,
         "job_id": app.job_id,
         "resume_id": app.resume_id,
+        "resume_source": app.resume_source,
+        "resume_optimization_id": app.resume_optimization_id,
         "status": app.status,
         "apply_type": app.apply_type,
         "applied_at": app.applied_at,
+        "agent_task_id": None,
     }

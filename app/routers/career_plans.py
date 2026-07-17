@@ -17,6 +17,7 @@ from app.schemas.career_plan import (
 from app.services.career_execution_service import (
     accept_career_plan,
     check_in_execution_task,
+    complete_all_execution_tasks,
     get_current_execution_overview,
     advance_execution_task,
 )
@@ -203,6 +204,21 @@ async def check_in_task(
 async def advance_plan_task(execution_plan_id: int, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     try:
         data = await advance_execution_task(db, user_id=current_user.id, execution_plan_id=execution_plan_id)
+    except CareerPlanError as exc:
+        raise_career_error(exc)
+    return {"code": 200, "message": "success", "data": data}
+
+
+@execution_router.post("/{execution_plan_id}/complete-all")
+async def complete_all_plan_tasks(
+    execution_plan_id: int,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    try:
+        data = await complete_all_execution_tasks(
+            db, user_id=current_user.id, execution_plan_id=execution_plan_id
+        )
     except CareerPlanError as exc:
         raise_career_error(exc)
     return {"code": 200, "message": "success", "data": data}

@@ -33,7 +33,7 @@ class FakeQuestionRetriever:
     last_source = "qdrant_vector"
     last_error = None
 
-    async def retrieve(self, query, *, top_k=None):
+    async def retrieve(self, query, *, top_k=None, filters=None):
         assert "FastAPI Depends" in query
         return [KnowledgeChunk(
             id="question-chunk-1",

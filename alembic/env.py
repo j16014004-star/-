@@ -26,6 +26,7 @@ import app.models.resume  # noqa: F401 — ensure all models are imported
 import app.models.job  # noqa: F401 — ensure all models are imported
 import app.models.ai  # noqa: F401 — ensure all models are imported
 import app.models.career_plan  # noqa: F401 - ensure career planning models are imported
+import app.models.hr  # noqa: F401 - ensure HR assistant models are imported
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,

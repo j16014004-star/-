@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import math
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -14,6 +15,14 @@ from app.core.config import settings
 
 
 SUPPORTED_EXTENSIONS = {'.md', '.txt', '.docx', '.pdf'}
+SECRETARY_ROLE_MARKERS = (
+    "秘书学", "秘书", "文秘", "行政助理", "办公室文员", "综合文员",
+    "经理助理", "总经理助理", "董事长助理", "办公室管理",
+)
+PYTHON_BACKEND_ROLE_MARKERS = (
+    "python", "fastapi", "django", "flask", "sqlalchemy", "pydantic",
+    "后端工程师", "后端开发", "服务端开发",
+)
 
 
 @dataclass(slots=True)
@@ -172,7 +181,7 @@ class BaseKnowledgeRetriever:
     ) -> list[KnowledgeChunk]:
         from qdrant_client import models
 
-        vector = await self.gateway.embed_text(query)
+        vector = await self._embed_query(query)
         client = _create_qdrant_client()
         try:
             response = await client.query_points(
@@ -183,10 +192,13 @@ class BaseKnowledgeRetriever:
                 with_payload=True,
             )
             chunks: list[KnowledgeChunk] = []
+            min_score = settings.AI_RAG_MIN_VECTOR_SCORE
+            if settings.LOCAL_KB_EMBEDDINGS:
+                min_score = 0.01
             for point in response.points:
                 payload = point.payload or {}
                 score = float(point.score or 0)
-                if score < settings.AI_RAG_MIN_VECTOR_SCORE:
+                if score < min_score:
                     continue
                 chunks.append(
                     KnowledgeChunk(
@@ -204,6 +216,11 @@ class BaseKnowledgeRetriever:
             return chunks
         finally:
             await client.close()
+
+    async def _embed_query(self, text: str) -> list[float]:
+        if settings.LOCAL_KB_EMBEDDINGS:
+            return local_hash_embedding(text)
+        return await self.gateway.embed_text(text)
 
 
 class ResumeKnowledgeRetriever(BaseKnowledgeRetriever):
@@ -233,6 +250,62 @@ class SkillAssessmentKnowledgeRetriever(BaseKnowledgeRetriever):
         )
 
 
+class JobRecommendationKnowledgeRetriever(BaseKnowledgeRetriever):
+    def __init__(self, gateway: TencentMaaSModelGateway | None = None) -> None:
+        super().__init__(
+            source_dir=settings.JOB_RECOMMENDATION_KB_SOURCE_DIR,
+            collection_name=settings.QDRANT_JOB_RECOMMENDATION_COLLECTION,
+            gateway=gateway,
+        )
+
+    async def _embed_query(self, text: str) -> list[float]:
+        if settings.LOCAL_KB_EMBEDDINGS:
+            return local_hash_embedding(text)
+        return await super()._embed_query(text)
+
+
+class HrCommunicationKnowledgeRetriever(BaseKnowledgeRetriever):
+    def __init__(self, gateway: TencentMaaSModelGateway | None = None) -> None:
+        super().__init__(
+            source_dir=settings.HR_COMMUNICATION_KB_SOURCE_DIR,
+            collection_name=settings.QDRANT_HR_COMMUNICATION_COLLECTION,
+            gateway=gateway,
+        )
+
+    async def _embed_query(self, text: str) -> list[float]:
+        if settings.LOCAL_KB_EMBEDDINGS:
+            return local_hash_embedding(text)
+        return await super()._embed_query(text)
+
+
+class PythonBackendInterviewKnowledgeRetriever(BaseKnowledgeRetriever):
+    def __init__(self, gateway: TencentMaaSModelGateway | None = None) -> None:
+        super().__init__(
+            source_dir=settings.INTERVIEW_PYTHON_KB_SOURCE_DIR,
+            collection_name=settings.QDRANT_INTERVIEW_PYTHON_COLLECTION,
+            gateway=gateway,
+        )
+
+
+class SecretaryInterviewKnowledgeRetriever(BaseKnowledgeRetriever):
+    def __init__(self, gateway: TencentMaaSModelGateway | None = None) -> None:
+        super().__init__(
+            source_dir=settings.INTERVIEW_SECRETARY_KB_SOURCE_DIR,
+            collection_name=settings.QDRANT_INTERVIEW_SECRETARY_COLLECTION,
+            gateway=gateway,
+        )
+
+
+def create_interview_knowledge_retriever(
+    domain: str, gateway: TencentMaaSModelGateway | None = None,
+) -> BaseKnowledgeRetriever:
+    if domain == "python_backend":
+        return PythonBackendInterviewKnowledgeRetriever(gateway)
+    if domain == "secretary_studies":
+        return SecretaryInterviewKnowledgeRetriever(gateway)
+    raise ValueError("当前模拟面试仅支持 Python 后端开发和秘书学方向")
+
+
 async def ingest_resume_knowledge_to_qdrant(
     gateway: TencentMaaSModelGateway | None = None,
 ) -> int:
@@ -242,6 +315,7 @@ async def ingest_resume_knowledge_to_qdrant(
         collection_name=settings.QDRANT_RESUME_COLLECTION,
         knowledge_base='resume_optimization',
         gateway=gateway,
+        use_local_hash_embedding=settings.LOCAL_KB_EMBEDDINGS,
     )
 
 
@@ -254,6 +328,7 @@ async def ingest_career_knowledge_to_qdrant(
         collection_name=settings.QDRANT_CAREER_COLLECTION,
         knowledge_base='career_planning',
         gateway=gateway,
+        use_local_hash_embedding=settings.LOCAL_KB_EMBEDDINGS,
     )
 
 
@@ -266,6 +341,59 @@ async def ingest_skill_assessment_knowledge_to_qdrant(
         collection_name=settings.QDRANT_SKILL_ASSESSMENT_COLLECTION,
         knowledge_base='skill_assessment',
         gateway=gateway,
+        use_local_hash_embedding=settings.LOCAL_KB_EMBEDDINGS,
+    )
+
+
+async def ingest_job_recommendation_knowledge_to_qdrant(
+    gateway: TencentMaaSModelGateway | None = None,
+) -> int:
+    return await ingest_knowledge_to_qdrant(
+        source_dir=settings.JOB_RECOMMENDATION_KB_SOURCE_DIR,
+        processed_dir=settings.JOB_RECOMMENDATION_KB_PROCESSED_DIR,
+        collection_name=settings.QDRANT_JOB_RECOMMENDATION_COLLECTION,
+        knowledge_base='job_recommendation',
+        gateway=gateway,
+        use_local_hash_embedding=settings.LOCAL_KB_EMBEDDINGS,
+    )
+
+
+async def ingest_hr_communication_knowledge_to_qdrant(
+    gateway: TencentMaaSModelGateway | None = None,
+) -> int:
+    return await ingest_knowledge_to_qdrant(
+        source_dir=settings.HR_COMMUNICATION_KB_SOURCE_DIR,
+        processed_dir=settings.HR_COMMUNICATION_KB_PROCESSED_DIR,
+        collection_name=settings.QDRANT_HR_COMMUNICATION_COLLECTION,
+        knowledge_base='hr_communication',
+        gateway=gateway,
+        use_local_hash_embedding=settings.LOCAL_KB_EMBEDDINGS,
+    )
+
+
+async def ingest_interview_python_knowledge_to_qdrant(
+    gateway: TencentMaaSModelGateway | None = None,
+) -> int:
+    return await ingest_knowledge_to_qdrant(
+        source_dir=settings.INTERVIEW_PYTHON_KB_SOURCE_DIR,
+        processed_dir=settings.INTERVIEW_PYTHON_KB_PROCESSED_DIR,
+        collection_name=settings.QDRANT_INTERVIEW_PYTHON_COLLECTION,
+        knowledge_base="interview_python_backend",
+        gateway=gateway,
+        use_local_hash_embedding=settings.LOCAL_KB_EMBEDDINGS,
+    )
+
+
+async def ingest_interview_secretary_knowledge_to_qdrant(
+    gateway: TencentMaaSModelGateway | None = None,
+) -> int:
+    return await ingest_knowledge_to_qdrant(
+        source_dir=settings.INTERVIEW_SECRETARY_KB_SOURCE_DIR,
+        processed_dir=settings.INTERVIEW_SECRETARY_KB_PROCESSED_DIR,
+        collection_name=settings.QDRANT_INTERVIEW_SECRETARY_COLLECTION,
+        knowledge_base="interview_secretary_studies",
+        gateway=gateway,
+        use_local_hash_embedding=settings.LOCAL_KB_EMBEDDINGS,
     )
 
 
@@ -276,6 +404,7 @@ async def ingest_knowledge_to_qdrant(
     collection_name: str,
     knowledge_base: str,
     gateway: TencentMaaSModelGateway | None = None,
+    use_local_hash_embedding: bool = False,
 ) -> int:
     from qdrant_client import models
 
@@ -305,7 +434,11 @@ async def ingest_knowledge_to_qdrant(
             wait=True,
         )
     for chunk in chunks:
-        vector = await model_gateway.embed_text(chunk.content)
+        vector = (
+            local_hash_embedding(chunk.content)
+            if use_local_hash_embedding
+            else await model_gateway.embed_text(chunk.content)
+        )
         point = models.PointStruct(
             id=str(uuid5(NAMESPACE_URL, chunk.id)),
             vector=vector,
@@ -397,6 +530,24 @@ def _sliding_chunks(text: str, chunk_size: int, overlap: int) -> list[str]:
     return chunks
 
 
+def local_hash_embedding(
+    text: str, dimension: int | None = None,
+) -> list[float]:
+    """Privacy-preserving deterministic vector for local KB collections."""
+    size = dimension or settings.TENCENT_MAAS_EMBEDDING_DIMENSION
+    vector = [0.0] * size
+    terms = sorted(_search_terms(text))
+    if not terms:
+        return vector
+    for term in terms:
+        digest = hashlib.sha256(term.encode("utf-8")).digest()
+        index = int.from_bytes(digest[:4], "big") % size
+        sign = 1.0 if digest[4] & 1 else -1.0
+        vector[index] += sign * (1.0 + min(len(term), 12) / 12)
+    norm = math.sqrt(sum(value * value for value in vector))
+    return [value / norm for value in vector] if norm else vector
+
+
 def _search_terms(text: str) -> set[str]:
     lowered = text.lower()
     latin = set(re.findall(r'[a-z0-9+#.]{2,}', lowered))
@@ -405,12 +556,31 @@ def _search_terms(text: str) -> set[str]:
     return latin | bigrams
 
 
+def infer_knowledge_role(*values: object) -> str:
+    """Infer the professional domain used to isolate knowledge retrieval."""
+    combined = " ".join(str(value or "") for value in values).lower()
+    if any(marker in combined for marker in SECRETARY_ROLE_MARKERS):
+        return "secretary_studies"
+    if any(marker in combined for marker in PYTHON_BACKEND_ROLE_MARKERS):
+        return "python_backend"
+    return "general"
+
+
+def role_knowledge_filters(*values: object) -> dict[str, list[str]] | None:
+    """Return a specific-domain plus general-knowledge filter when possible."""
+    role = infer_knowledge_role(*values)
+    return None if role == "general" else {"role": [role, "general"]}
+
+
 def _infer_metadata(path: Path, section: str, content: str) -> dict[str, str | list[str]]:
     combined = f"{path.stem} {section} {content}".lower()
     skills = [name for name in (
         "python", "fastapi", "pydantic", "sqlalchemy", "mysql", "postgresql",
         "redis", "jwt", "pytest", "alembic", "docker", "linux", "nginx",
-        "git", "asyncio", "qdrant",
+        "git", "asyncio", "qdrant", "秘书学", "公文写作", "应用文写作",
+        "会议组织", "会议纪要", "档案管理", "办公室管理", "行政管理",
+        "商务礼仪", "沟通协调", "信息管理", "word", "excel",
+        "powerpoint", "wps",
     ) if name in combined]
     knowledge_type = "guidance"
     if any(word in section for word in ("评分", "Rubric", "验收", "考核")):
@@ -427,7 +597,7 @@ def _infer_metadata(path: Path, section: str, content: str) -> dict[str, str | l
     elif "高级" in combined and "初级" not in combined and "中级" not in combined:
         level = "senior"
     return {
-        "role": "python_backend",
+        "role": infer_knowledge_role(path.stem, section, content),
         "knowledge_type": knowledge_type,
         "level": level,
         "skills": skills,

@@ -11,6 +11,7 @@ from app.core.database import async_session, engine
 from app.crud.job_recommendation import update_task
 from app.models.job import JobRecommendTask
 from app.services.recommendation_task_service import run_recommendation_task
+from app.services.operational_alert_service import emit_operational_alert
 
 
 TASK_WAIT_SECONDS = 10
@@ -49,6 +50,11 @@ async def mark_task_failed(task_id: str, message: str) -> None:
             finished_at=datetime.now(timezone.utc),
         )
         await db.commit()
+    emit_operational_alert(
+        category="recommendation_worker_failed",
+        message=message,
+        context={"task_id": task_id},
+    )
 
 
 async def run_worker(task_id: str) -> None:

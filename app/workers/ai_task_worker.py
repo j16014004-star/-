@@ -16,6 +16,7 @@ from app.services.career_assessment_service import (
     execute_stage_assessment_task,
 )
 from app.services.resume_optimization_service import execute_resume_optimization_task
+from app.services.hr_service import execute_hr_application_draft_task
 
 
 TASK_WAIT_SECONDS = 10
@@ -46,7 +47,7 @@ async def run(task_id: str) -> int:
     if task is None:
         print(f'[ai-worker] task not found after wait: {task_id}')
         return 2
-    if task.task_type not in ('resume_optimization', 'career_plan', 'career_plan_question', 'career_stage_assessment', 'career_stage_assessment_evaluation'):
+    if task.task_type not in ('resume_optimization', 'career_plan', 'career_plan_question', 'career_stage_assessment', 'career_stage_assessment_evaluation', 'hr_application_draft'):
         print(f'[ai-worker] unsupported task type: {task.task_type}')
         return 3
     print(f'[ai-worker] start task={task_id} type={task.task_type}')
@@ -61,6 +62,8 @@ async def run(task_id: str) -> int:
             await execute_stage_assessment_task(task_id)
         elif task.task_type == 'career_stage_assessment_evaluation':
             await execute_stage_assessment_evaluation_task(task_id)
+        elif task.task_type == 'hr_application_draft':
+            await execute_hr_application_draft_task(task_id)
     finally:
         await engine.dispose()
     print(f'[ai-worker] finished task={task_id}')

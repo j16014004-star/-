@@ -137,7 +137,7 @@ class FakeCareerGateway:
 
 
 class FakeCareerRetriever:
-    async def retrieve(self, query: str, *, top_k: int | None = None):
+    async def retrieve(self, query: str, *, top_k: int | None = None, filters=None):
         assert "Python 后端工程师" in query
         return [
             KnowledgeChunk(

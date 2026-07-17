@@ -255,6 +255,9 @@ async def execute_career_question_task(task_id: str) -> None:
             task.status = "saving"
             task.progress = 90
             task.token_usage = usage
+            used_model = state.get("used_model_name") or settings.CAREER_PLANNING_MODEL
+            task.model_name = used_model or getattr(task, "model_name", None)
+            question.model_name = used_model or getattr(question, "model_name", None)
             question.answer = answer
             question.status = "answered"
             question.error_message = None
