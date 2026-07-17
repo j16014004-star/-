@@ -27,6 +27,8 @@ import app.models.job  # noqa: F401 — ensure all models are imported
 import app.models.ai  # noqa: F401 — ensure all models are imported
 import app.models.career_plan  # noqa: F401 - ensure career planning models are imported
 import app.models.hr  # noqa: F401 - ensure HR assistant models are imported
+import app.models.mock_interview  # noqa: F401 - ensure mock interview models are imported
+from app.core.config import settings
 target_metadata = Base.metadata
 
 # other values from the config, defined by the needs of env.py,
@@ -47,7 +49,7 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
+    url = settings.DATABASE_URL
     context.configure(
         url=url,
         target_metadata=target_metadata,
@@ -64,7 +66,7 @@ def run_migrations_online() -> None:
     from sqlalchemy import create_engine
 
     # 用同步 URL 替换异步 URL
-    sync_url = config.get_main_option("sqlalchemy.url").replace("+aiomysql", "+pymysql")
+    sync_url = settings.DATABASE_URL.replace("+aiomysql", "+pymysql")
     connectable = create_engine(sync_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:

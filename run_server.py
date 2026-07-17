@@ -25,4 +25,6 @@ if __name__ == "__main__":
         reload=False,
         workers=1,
         loop="asyncio",
+        proxy_headers=True,
+        forwarded_allow_ips=os.getenv("FORWARDED_ALLOW_IPS", "127.0.0.1"),
     )

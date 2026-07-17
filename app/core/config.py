@@ -3,6 +3,8 @@
 """
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import List
+from sqlalchemy.engine import URL
+from urllib.parse import quote
 
 
 class Settings(BaseSettings):
@@ -16,6 +18,9 @@ class Settings(BaseSettings):
     DEBUG: bool = True
     SECRET_KEY: str = "change-me-in-production"
     API_PREFIX: str = "/api/v1"
+    AUTO_CREATE_TABLES: bool = True
+    ENABLE_API_DOCS: bool = True
+    ALLOWED_HOSTS: str = "*"
 
     # 数据库
     DB_HOST: str = "localhost"
@@ -49,9 +54,6 @@ class Settings(BaseSettings):
     TENCENT_MAAS_REGION: str = 'china-mainland'
     RESUME_OPTIMIZATION_MODEL: str = 'deepseek-v4-flash'
     CAREER_PLANNING_MODEL: str = 'deepseek-v4-flash'
-    HR_ASSISTANT_MODEL: str = 'deepseek-v4-flash'
-    HR_APPLICATION_MAX_OUTPUT_TOKENS: int = 1200
-    HR_APPLICATION_PROMPT_VERSION: str = 'hr-application-v1'
     HR_REPLY_PROMPT_VERSION: str = 'hr-reply-v1'
     HR_INTERVIEW_PROMPT_VERSION: str = 'hr-interview-v1'
     HR_ASSISTANT_MODEL: str = 'deepseek-v4-flash'
@@ -152,27 +154,26 @@ class Settings(BaseSettings):
     WORKER_TASK_TIMEOUT_SECONDS: int = 900
     WORKER_TASK_MAX_RETRIES: int = 2
     OPERATIONS_ALERT_LOG: str = "./logs/alerts/operations.jsonl"
-    OPERATIONS_ALERT_LOG: str = "./logs/alerts/operations.jsonl"
-    PLATFORM_STATE_ENCRYPTION_KEY: str = ""
-    PLAYWRIGHT_CDP_ENDPOINT: str = ""
-    PLAYWRIGHT_REMOTE_VIEW_URL: str = ""
-    WORKER_BACKEND: str = "subprocess"
-    WORKER_TASK_TIMEOUT_SECONDS: int = 900
-    WORKER_TASK_MAX_RETRIES: int = 2
 
     @property
     def DATABASE_URL(self) -> str:
-        """构造 MySQL 异步连接 URL"""
-        return (
-            f"mysql+aiomysql://{self.DB_USER}:{self.DB_PASSWORD}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}?charset=utf8mb4"
-        )
+        """构造安全编码的 MySQL 异步连接 URL，支持密码中的特殊字符。"""
+        return URL.create(
+            drivername="mysql+aiomysql",
+            username=self.DB_USER,
+            password=self.DB_PASSWORD,
+            host=self.DB_HOST,
+            port=self.DB_PORT,
+            database=self.DB_NAME,
+            query={"charset": "utf8mb4"},
+        ).render_as_string(hide_password=False)
 
     @property
     def REDIS_URL(self) -> str:
         """构造 Redis 连接 URL"""
         if self.REDIS_PASSWORD:
-            return f"redis://:{self.REDIS_PASSWORD}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
+            password = quote(self.REDIS_PASSWORD, safe="")
+            return f"redis://:{password}@{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
         return f"redis://{self.REDIS_HOST}:{self.REDIS_PORT}/{self.REDIS_DB}"
 
     @property
@@ -190,6 +191,11 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+
+    @property
+    def allowed_hosts_list(self) -> List[str]:
+        hosts = [host.strip() for host in self.ALLOWED_HOSTS.split(",") if host.strip()]
+        return hosts or ["*"]
 
 
 # 全局配置单例

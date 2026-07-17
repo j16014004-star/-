@@ -3,6 +3,7 @@ AI Career Agent - FastAPI 后端入口文件
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 from contextlib import asynccontextmanager
@@ -27,6 +28,7 @@ from app.routers.career_plans import execution_router as career_executions_route
 from app.routers.profile import router as profile_router
 from app.routers.hr import router as hr_router
 from app.routers.mock_interviews import router as mock_interviews_router
+from app.routers.health import router as health_router
 from app.services.job_refresh_service import job_refresh_scheduler
 from app.services.hr_service import hr_monitor_scheduler
 
@@ -34,9 +36,10 @@ from app.services.hr_service import hr_monitor_scheduler
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    # 启动时：创建数据库表
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # 开发环境可自动建表；生产环境必须先执行 alembic upgrade head。
+    if settings.AUTO_CREATE_TABLES:
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
     scheduler_task = None
     hr_monitor_task = None
     if settings.JOB_AUTO_REFRESH_ENABLED:
@@ -61,12 +64,17 @@ app = FastAPI(
     description="AI 智能求职助手平台 API",
     version="1.0.0",
     lifespan=lifespan,
+    docs_url="/docs" if settings.ENABLE_API_DOCS else None,
+    redoc_url="/redoc" if settings.ENABLE_API_DOCS else None,
+    openapi_url="/openapi.json" if settings.ENABLE_API_DOCS else None,
 )
+
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts_list)
 
 # CORS 中间件
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS.split(","),
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -105,6 +113,7 @@ app.include_router(career_plans_router)
 app.include_router(career_executions_router)
 app.include_router(hr_router)
 app.include_router(mock_interviews_router)
+app.include_router(health_router)
 
 avatar_dir = Path(settings.UPLOAD_DIR) / "avatars"
 avatar_dir.mkdir(parents=True, exist_ok=True)
