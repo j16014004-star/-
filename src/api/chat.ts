@@ -1,18 +1,25 @@
 import request from '@/utils/request'
 import type { ApiResponse, ChatSession, ChatMessage } from '@/types'
 import type { ChatSendParams } from './types/chat'
+import type { AxiosResponse } from 'axios'
+
+type ApiPromise<T> = Promise<ApiResponse<T>>
+
+function asApiPromise<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): ApiPromise<T> {
+  return promise as unknown as ApiPromise<T>
+}
 
 export const chatApi = {
   getSessions() {
-    return request.get<ApiResponse<ChatSession[]>>('/chat/sessions')
+    return asApiPromise(request.get<ApiResponse<ChatSession[]>>('/chat/sessions'))
   },
 
   getMessages(sessionId: number) {
-    return request.get<ApiResponse<ChatMessage[]>>(`/chat/sessions/${sessionId}/messages`)
+    return asApiPromise(request.get<ApiResponse<ChatMessage[]>>(`/chat/sessions/${sessionId}/messages`))
   },
 
   sendMessage(params: ChatSendParams) {
-    return request.post<ApiResponse<ChatMessage>>('/chat/send', params)
+    return asApiPromise(request.post<ApiResponse<ChatMessage>>('/chat/send', params))
   },
 
   sendMessageStream(params: ChatSendParams) {
@@ -22,6 +29,6 @@ export const chatApi = {
   },
 
   deleteSession(id: number) {
-    return request.delete<ApiResponse<null>>(`/chat/sessions/${id}`)
+    return asApiPromise(request.delete<ApiResponse<null>>(`/chat/sessions/${id}`))
   },
 }

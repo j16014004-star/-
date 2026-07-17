@@ -177,6 +177,7 @@ export interface CareerExecutionOverview {
   longest_streak: number
   today_tasks: CareerCheckinTask[]
   week_tasks: CareerCheckinTask[]
+  all_tasks: CareerCheckinTask[]
   recent_checkins: CareerCheckinRecord[]
   today_completed?: boolean
   can_advance?: boolean
@@ -224,6 +225,11 @@ export type CareerStageStatus =
 export interface CareerAdvanceResult {
   overview: CareerExecutionOverview
   advanced_task: CareerCheckinTask
+}
+
+export interface CareerCompleteAllResult {
+  completed_count: number
+  overview: CareerExecutionOverview
 }
 
 export type CareerAssessmentQuestionType =

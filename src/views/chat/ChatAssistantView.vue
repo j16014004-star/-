@@ -130,27 +130,20 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, nextTick, onMounted } from 'vue'
+import { ref, reactive, nextTick, onMounted, watch } from 'vue'
 import { Plus, Delete, Promotion } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { chatApi } from '@/api/chat'
 
-interface Session {
-  id: number
-  title: string
-  updatedAt: string
-}
-
 interface Message {
   id: string
-  role: 'user' | 'assistant'
+  role: 'user' | 'assistant' | 'system'
   content: string
   createdAt: string
 }
 
 const sessions = ref<any[]>([])
 const currentSession = ref<any | null>(null)
-const initialMessages: Message[] = []
 const messages = ref<Message[]>([])
 const isLoading = ref(false)
 
@@ -164,15 +157,7 @@ watch(messages, (newMessages) => {
   }
 }, { deep: true })
 
-// 自动同步当前消息到会话存储
-watch(messages, (newMessages) => {
-  if (currentSession.value) {
-    sessionMessagesMap[currentSession.value.id] = [...newMessages]
-  }
-}, { deep: true })
-
 const inputText = ref('')
-const loading = ref(false)
 const isStreaming = ref(false)
 const streamingText = ref('')
 const messagesContainer = ref<HTMLElement | null>(null)
@@ -277,16 +262,6 @@ async function deleteSession(id: number) {
 function sendSuggestion(text: string) {
   inputText.value = text
   handleSend()
-}
-
-// AI responses for demo
-const aiResponses: Record<string, string> = {
-  '简历': '优化简历中的工作经历时，建议使用STAR法则（Situation情境、Task任务、Action行动、Result结果）来描述你的工作经历。重点突出你取得的**量化成果**，比如"提升了30%的页面加载速度"比"优化了性能"更有说服力。此外，确保简历中的技能与目标岗位要求相匹配，使用行业关键词。',
-  '面试': '技术面试前建议做好以下准备：\n\n1. **基础知识复习**：HTML/CSS/JavaScript核心概念\n2. **框架原理**：Vue/React的生命周期、响应式原理等\n3. **手撕代码**：练习常见的算法题和手写API\n4. **项目复盘**：深入理解你简历上的每个项目\n5. **模拟面试**：使用我们的AI面试功能进行练习',
-  '职业': '前端工程师的典型发展路径：\n\n1. **初级工程师**（0-2年）：掌握基础技术栈，能独立完成页面开发\n2. **中级工程师**（2-5年）：具备架构思维，能主导项目\n3. **高级工程师**（5-8年）：技术专家，能制定技术方案\n4. **技术专家/架构师**（8年+）：技术决策者，影响团队技术方向\n5. **技术管理**：转向技术管理，如Tech Lead或CTO\n\n建议在工作中持续学习，关注行业趋势，积极参与开源项目。',
-  '缺点': '回答"你的缺点"时的技巧：\n\n1. 选择**真实的但非致命的**缺点\n2. 展示你已经在**积极改进**\n3. 举例说明你采取的**具体行动**\n\n示例："我有时候会过于追求代码完美，导致开发进度偏慢。后来我学会了在项目初期就设定好质量标准，在质量和效率之间找到平衡。现在我能更好地控制代码质量与交付时间的关系。"',
-  '评价': '自我评价不是必须的，但写得好可以加分：\n\n1. 避免空洞的形容词（如"吃苦耐劳"）\n2. 结合具体能力来写（如"3年前端经验，擅长性能优化"）\n3. 放在简历顶部作为"个人总结"\n4. 控制在3-4句话\n\n更好的做法是用简洁的"个人优势"模块替代传统的自我评价。',
-  '跳槽': '跳槽的最佳时机取决于多个因素：\n\n1. **时机**：金三银四（3-4月）和金九银十（9-10月）\n2. **准备**：确保技能达到目标岗位要求\n3. **市场**：关注行业招聘趋势\n4. **内部发展**：先考虑内部晋升机会\n\n建议至少在当前公司待满1-2年，频繁跳槽会影响简历评分。',
 }
 
 function handleSend() {

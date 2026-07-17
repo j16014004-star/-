@@ -53,6 +53,7 @@ export interface StartPlatformLoginParams {
   target_role?: string
   target_city?: string
   limit?: number
+  force_refresh?: boolean
 }
 
 export type PlatformLoginSessionStatus = 'waiting_login' | 'logged_in' | 'expired' | 'failed'
@@ -62,8 +63,9 @@ export interface PlatformLoginSession {
   source: string
   source_name: string
   status: PlatformLoginSessionStatus
-  login_mode: 'server_browser'
+  login_mode: 'server_browser' | 'remote_browser'
   login_url?: string
+  browser_url?: string | null
   expires_at: string
   error_message?: string | null
   recommend_task_id?: string | null
@@ -83,6 +85,7 @@ export interface StartRecommendationParams {
   target_role?: string
   target_city?: string
   limit?: number
+  force_refresh?: boolean
 }
 
 export type JobRecommendTaskStatus = 'pending' | 'crawling' | 'matching' | 'success' | 'no_results' | 'failed' | 'need_login'
@@ -92,6 +95,8 @@ export type JobRecommendFailureCode =
   | 'no_matching_jobs'
   | 'parse_failed'
   | 'crawl_failed'
+  | 'network_access_denied'
+  | 'network_access_denied'
   | string
 
 export interface JobCrawlDiagnostics {

@@ -1,22 +1,23 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppStore } from '@/stores/app'
+import { useHrAutomationStore } from '@/stores/hrAutomation'
 import {
   DataBoard,
   Document,
   TrendCharts,
   Calendar,
   Briefcase,
-  ChatDotSquare,
   VideoCamera,
-  Monitor,
+  // Monitor, // Agent任务中心暂时停用，后续需要时恢复。
   Message,
   User,
 } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const appStore = useAppStore()
+const hrStore = useHrAutomationStore()
 
 const isCollapsed = computed(() => appStore.sidebarCollapsed)
 
@@ -27,7 +28,7 @@ const activeIndex = computed(() => {
   return path
 })
 
-const menuItems = [
+const menuItems = computed(() => [
   { index: '/', title: '首页', icon: DataBoard },
   {
     index: '/resume',
@@ -41,12 +42,13 @@ const menuItems = [
   { index: '/career', title: '职业规划', icon: TrendCharts },
   { index: '/career/check-in', title: '计划执行打卡', icon: Calendar },
   { index: '/jobs', title: '岗位推荐', icon: Briefcase },
-  { index: '/chat', title: '哈基米AI', icon: ChatDotSquare },
   { index: '/interview', title: 'AI面试', icon: VideoCamera },
-  { index: '/agent', title: 'Agent任务中心', icon: Monitor },
-  { index: '/hr', title: 'HR助手', icon: Message },
+  // { index: '/agent', title: 'Agent任务中心', icon: Monitor },
+  ...(hrStore.hasWorkspace ? [{ index: '/hr', title: 'HR助手', icon: Message }] : []),
   { index: '/profile', title: '个人中心', icon: User },
-]
+])
+
+onMounted(() => { void hrStore.loadOverview() })
 </script>
 
 <template>

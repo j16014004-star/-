@@ -19,10 +19,10 @@
             >
               <el-avatar
                 :size="72"
-                :src="userInfo.avatar || undefined"
+                :src="avatarDisplayUrl || undefined"
                 class="cursor-pointer bg-indigo-100 text-2xl font-bold text-indigo-600 transition-opacity hover:opacity-80"
               >
-                <span v-if="!userInfo.avatar">{{ userInfo.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
+                <span>{{ userInfo.username?.charAt(0)?.toUpperCase() || 'U' }}</span>
               </el-avatar>
               <div class="avatar-overlay">
                 <el-icon v-if="!avatarUploading" class="text-white"><Camera /></el-icon>
@@ -296,6 +296,7 @@ import type {
 } from '@/api/types/profile'
 import { useAppStore } from '@/stores/app'
 import { storage, TOKEN_KEY, USER_KEY } from '@/utils/storage'
+import { resolveMediaUrl, withCacheVersion } from '@/utils/media'
 
 const router = useRouter()
 const appStore = useAppStore()
@@ -304,6 +305,7 @@ const profileSaving = ref(false)
 const avatarUploading = ref(false)
 const avatarRemoving = ref(false)
 const avatarProgress = ref(0)
+const avatarVersion = ref(0)
 const passwordSaving = ref(false)
 const twoFactorLoading = ref(false)
 const preferenceSavingKey = ref<keyof ProfilePreferences | null>(null)
@@ -388,6 +390,10 @@ const currentThemeLabel = computed(() => ({
   light: '当前：浅色模式', dark: '当前：深色模式', auto: '当前：跟随系统主题',
 })[appStore.theme])
 
+const avatarDisplayUrl = computed(() =>
+  withCacheVersion(resolveMediaUrl(userInfo.avatar), avatarVersion.value),
+)
+
 const loadPage = async () => {
   initialLoading.value = true
   try {
@@ -404,13 +410,17 @@ const loadPage = async () => {
 }
 
 const applyProfile = (profile: ProfileInfo) => {
-  Object.assign(userInfo, profile)
-  originalProfile.value = { ...profile }
+  const normalizedProfile = {
+    ...profile,
+    avatar: resolveMediaUrl(profile.avatar) || null,
+  }
+  Object.assign(userInfo, normalizedProfile)
+  originalProfile.value = { ...normalizedProfile }
   profileForm.username = profile.username || ''
   appStore.user.name = profile.username || '用户'
-  appStore.setAvatar(profile.avatar || '')
+  appStore.setAvatar(normalizedProfile.avatar || '')
   const stored = storage.get<Record<string, unknown>>(USER_KEY) || {}
-  storage.set(USER_KEY, { ...stored, ...profile })
+  storage.set(USER_KEY, { ...stored, ...normalizedProfile })
 }
 
 const loadProfileFallback = () => {
@@ -462,9 +472,11 @@ const handleAvatarUpload = async (options: UploadRequestOptions) => {
   avatarProgress.value = 0
   try {
     const response = await profileApi.uploadAvatar(options.file, (value) => { avatarProgress.value = value })
-    userInfo.avatar = response.data.avatar_url
-    originalProfile.value = originalProfile.value ? { ...originalProfile.value, avatar: response.data.avatar_url } : null
-    appStore.setAvatar(response.data.avatar_url)
+    const avatarUrl = resolveMediaUrl(response.data.avatar_url)
+    userInfo.avatar = avatarUrl
+    originalProfile.value = originalProfile.value ? { ...originalProfile.value, avatar: avatarUrl } : null
+    appStore.setAvatar(avatarUrl)
+    avatarVersion.value = Date.now()
     avatarProgress.value = 100
     options.onSuccess(response.data)
     ElMessage.success('头像上传成功')
@@ -723,7 +735,8 @@ onMounted(() => { void loadPage() })
 }
 
 html.dark .setting-row {
-  background: #1f2937;
+  background: #172033;
+  border: 1px solid #334155;
 }
 
 .avatar-uploader,

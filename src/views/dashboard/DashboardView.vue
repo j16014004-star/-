@@ -65,6 +65,27 @@
       </el-row>
     </div>
 
+    <div v-if="hrStore.hasWorkspace" class="mb-8">
+      <el-card class="border-0" shadow="hover">
+        <div class="flex flex-wrap items-center justify-between gap-5 rounded-xl bg-gradient-to-r from-indigo-50 to-purple-50 p-5">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xl">✉️</span>
+              <h2 class="text-lg font-semibold text-gray-800">HR 助手</h2>
+              <el-badge :value="hrStore.overview.unread_messages" :hidden="!hrStore.overview.unread_messages" />
+            </div>
+            <p class="mt-2 text-sm text-gray-500">查看第三方平台上的投递进度、HR 沟通和面试安排</p>
+          </div>
+          <div class="flex flex-wrap items-center gap-5 text-center">
+            <div><div class="text-xl font-bold text-indigo-600">{{ hrStore.overview.active_workspaces }}</div><div class="text-xs text-gray-400">进行中</div></div>
+            <div><div class="text-xl font-bold text-amber-600">{{ hrStore.overview.pending_confirmations }}</div><div class="text-xs text-gray-400">待确认</div></div>
+            <div><div class="text-xl font-bold text-green-600">{{ hrStore.overview.upcoming_interviews }}</div><div class="text-xs text-gray-400">待面试</div></div>
+            <el-button type="primary" @click="router.push('/hr')">进入 HR 助手</el-button>
+          </div>
+        </div>
+      </el-card>
+    </div>
+
     <!-- Bottom Row: Activity + Upcoming -->
     <el-row :gutter="20">
       <!-- Recent Activity -->
@@ -143,11 +164,13 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { resumeApi } from '@/api/resume'
 import { interviewApi } from '@/api/interview'
-import { chatApi } from '@/api/chat'
 import { jobApi } from '@/api/job'
+import { useHrAutomationStore } from '@/stores/hrAutomation'
 import { storage, USER_KEY } from '@/utils/storage'
+import type { Interview } from '@/types'
 
 const router = useRouter()
+const hrStore = useHrAutomationStore()
 
 const username = ref('用户')
 const isLoading = ref(false)
@@ -160,17 +183,27 @@ const todayDate = new Date().toLocaleDateString('zh-CN', {
 
 const todayWeekday = new Date().toLocaleDateString('zh-CN', { weekday: 'long' })
 
-const stats = ref([
+const baseStats = ref([
   { label: '简历数', value: '0', icon: '📄', trend: 0, bgColor: 'linear-gradient(135deg, #dbeafe, #bfdbfe)' },
   { label: '面试次数', value: '0', icon: '💬', trend: 0, bgColor: 'linear-gradient(135deg, #d1fae5, #a7f3d0)' },
-  { label: '匹配岗位', value: '0', icon: '🎯', trend: 0, bgColor: 'linear-gradient(135deg, #fef3c7, #fde68a)' },
-  { label: 'AI对话', value: '0', icon: '🤖', trend: 0, bgColor: 'linear-gradient(135deg, #e0e7ff, #c7d2fe)' }
+  { label: '匹配岗位', value: '0', icon: '🎯', trend: 0, bgColor: 'linear-gradient(135deg, #fef3c7, #fde68a)' }
+])
+
+const stats = computed(() => [
+  ...baseStats.value,
+  ...(hrStore.hasWorkspace ? [{
+    label: '进行中投递',
+    value: String(hrStore.overview.active_workspaces),
+    icon: '✉️',
+    trend: 0,
+    bgColor: 'linear-gradient(135deg, #e0e7ff, #ddd6fe)',
+  }] : []),
 ])
 
 const activities = ref<any[]>([])
 const upcomingInterviews = ref<any[]>([])
 
-const quickActions = [
+const quickActions = computed(() => [
   {
     icon: '📄',
     label: '上传简历',
@@ -184,46 +217,45 @@ const quickActions = [
     handler: () => router.push('/interview/lobby')
   },
   {
-    icon: '🤖',
-    label: 'AI咨询',
-    desc: '智能问答助手',
-    handler: () => router.push('/chat')
-  },
-  {
     icon: '🔍',
     label: '查看岗位',
     desc: '浏览推荐职位',
     handler: () => router.push('/jobs')
-  }
-]
+  },
+  ...(hrStore.hasWorkspace ? [{
+    icon: '✉️',
+    label: 'HR 助手',
+    desc: '查看投递与 HR 沟通',
+    handler: () => router.push('/hr'),
+  }] : []),
+])
 
 // 从后端 API 加载仪表盘数据
 async function loadDashboardData() {
   isLoading.value = true
   try {
     // 并行加载所有数据
-    const [resumeRes, interviewRes, chatRes, jobRes] = await Promise.all([
+    const [resumeRes, interviewRes, jobRes] = await Promise.all([
       resumeApi.getList({ page: 1, page_size: 10 }).catch(() => null),
       interviewApi.getList().catch(() => null),
-      chatApi.getSessions().catch(() => null),
       jobApi.getRecommendations({ page: 1, page_size: 10 }).catch(() => null)
     ])
 
     // 更新统计数据
+    const resumeItems = resumeRes?.data?.items || []
+    const interviews = (interviewRes?.data || []) as unknown as Interview[]
+    const jobItems = jobRes?.data?.items || []
     const resumeCount = resumeRes?.data?.total || 0
-    const interviewCount = interviewRes?.data?.length || 0
+    const interviewCount = interviews.length
     const jobCount = jobRes?.data?.total || 0
-    const chatCount = chatRes?.data?.length || 0
-
-    stats.value[0].value = resumeCount.toString()
-    stats.value[1].value = interviewCount.toString()
-    stats.value[2].value = jobCount.toString()
-    stats.value[3].value = chatCount.toString()
+    baseStats.value[0].value = resumeCount.toString()
+    baseStats.value[1].value = interviewCount.toString()
+    baseStats.value[2].value = jobCount.toString()
 
     // 构建最近动态
     activities.value = []
-    if (resumeRes?.data?.items?.length > 0) {
-      const latestResume = resumeRes.data.items[0]
+    if (resumeItems.length > 0) {
+      const latestResume = resumeItems[0]
       activities.value.push({
         title: `简历"${latestResume.title}" 分析完成`,
         desc: latestResume.score ? `AI评分 ${latestResume.score}分` : '已为你生成分析结果',
@@ -232,8 +264,8 @@ async function loadDashboardData() {
         color: '#d1fae5'
       })
     }
-    if (interviewRes?.data?.length > 0) {
-      const latestInterview = interviewRes.data[0]
+    if (interviews.length > 0) {
+      const latestInterview = interviews[0]
       activities.value.push({
         title: `AI面试模拟完成`,
         desc: `${latestInterview.position}面试，得分 ${latestInterview.score || '待评分'}分`,
@@ -242,7 +274,7 @@ async function loadDashboardData() {
         color: '#fef3c7'
       })
     }
-    if (jobRes?.data?.items?.length > 0) {
+    if (jobItems.length > 0) {
       activities.value.push({
         title: `新增 ${jobCount} 个匹配岗位`,
         desc: '基于你的技能和经历推荐',
@@ -253,7 +285,7 @@ async function loadDashboardData() {
     }
 
     // 加载即将到来的面试
-    const pendingInterviews = interviewRes?.data?.filter((i: any) => i.status === 'pending' || i.status === 'in_progress') || []
+    const pendingInterviews = interviews.filter((i) => i.status === 'pending' || i.status === 'in_progress')
     upcomingInterviews.value = pendingInterviews.slice(0, 2).map((i: any) => ({
       id: i.id,
       company: i.company || '未指定',
@@ -290,7 +322,7 @@ onMounted(() => {
     username.value = stored.username || '用户'
   }
   // 加载仪表盘数据
-  loadDashboardData()
+  void Promise.all([loadDashboardData(), hrStore.loadOverview(true)])
 })
 </script>
 

@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@custom-variant dark (&:where(.dark, .dark *));
 
 :root {
   --primary-color: #4f46e5;
@@ -20,18 +21,26 @@
 
 /* Dark mode */
 html.dark {
-  --bg-color: #1a1a2e;
-  --bg-secondary: #16213e;
+  --bg-color: #0f172a;
+  --bg-secondary: #111827;
   --text-color: #e5e7eb;
-  --text-secondary: #9ca3af;
-  --border-color: #374151;
-  --card-bg: #1f2937;
+  --text-secondary: #94a3b8;
+  --border-color: #334155;
+  --card-bg: #1e293b;
+  --surface-muted: #172033;
+  --surface-hover: #263449;
 
   /* Element Plus dark mode overrides */
   color-scheme: dark;
 }
 
 html.dark body {
+  background-color: var(--bg-secondary);
+  color: var(--text-color);
+}
+
+html.dark #app,
+html.dark .el-main {
   background-color: var(--bg-secondary);
   color: var(--text-color);
 }
@@ -48,7 +57,7 @@ html.dark .el-card__header {
 }
 
 html.dark .el-input__wrapper {
-  background-color: var(--bg-secondary) !important;
+  background-color: var(--surface-muted) !important;
   box-shadow: 0 0 0 1px var(--border-color) inset !important;
 }
 
@@ -56,13 +65,39 @@ html.dark .el-input__inner {
   color: var(--text-color) !important;
 }
 
+html.dark .el-input.is-disabled .el-input__wrapper {
+  background-color: #202c40 !important;
+}
+
+html.dark .el-input.is-disabled .el-input__inner {
+  color: #a8b3c5 !important;
+  -webkit-text-fill-color: #a8b3c5 !important;
+}
+
+html.dark .el-input-group__append,
+html.dark .el-input-group__prepend {
+  background-color: #263449 !important;
+  border-color: var(--border-color) !important;
+  color: #a8b3c5 !important;
+}
+
+html.dark .el-textarea__inner {
+  background-color: var(--surface-muted) !important;
+  box-shadow: 0 0 0 1px var(--border-color) inset !important;
+  color: var(--text-color) !important;
+}
+
 html.dark .el-select__wrapper {
-  background-color: var(--bg-secondary) !important;
+  background-color: var(--surface-muted) !important;
   box-shadow: 0 0 0 1px var(--border-color) inset !important;
 }
 
 html.dark .el-dialog {
   background-color: var(--card-bg) !important;
+}
+
+html.dark .el-overlay {
+  background-color: rgba(2, 6, 23, 0.72) !important;
 }
 
 html.dark .el-dialog__title {
@@ -137,6 +172,39 @@ html.dark .el-descriptions__content {
 }
 
 html.dark .el-radio__label {
+  color: var(--text-color) !important;
+}
+
+html.dark .el-radio-button__inner {
+  background-color: var(--surface-muted) !important;
+  border-color: var(--border-color) !important;
+  color: var(--text-secondary) !important;
+  box-shadow: none !important;
+}
+
+html.dark .el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: #4f46e5 !important;
+  border-color: #6366f1 !important;
+  color: #ffffff !important;
+}
+
+html.dark .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger) {
+  background-color: #263449;
+  border-color: #3b4b63;
+  color: #d7deea;
+}
+
+html.dark .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--warning):not(.el-button--danger):hover {
+  background-color: #334155;
+  border-color: #6366f1;
+  color: #ffffff;
+}
+
+html.dark .el-popper,
+html.dark .el-select-dropdown,
+html.dark .el-picker-panel {
+  background-color: var(--card-bg) !important;
+  border-color: var(--border-color) !important;
   color: var(--text-color) !important;
 }
 

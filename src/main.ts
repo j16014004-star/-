@@ -25,8 +25,8 @@ if (import.meta.env.DEV) {
     // import('./mock/job').then(({ setupJobMock }) => setupJobMock())
     import('./mock/chat').then(({ setupChatMock }) => setupChatMock())
     import('./mock/agent').then(({ setupAgentMock }) => setupAgentMock())
-    import('./mock/hr').then(({ setupHRMock }) => setupHRMock())
-    import('./mock/interview').then(({ setupInterviewMock }) => setupInterviewMock())
+    // HR mock disabled - job application, communication and interviews use the real backend.
+    // Interview mock disabled - AI mock interviews use the real backend and vector knowledge bases.
   })
 }
 

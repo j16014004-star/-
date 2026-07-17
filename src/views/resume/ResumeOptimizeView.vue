@@ -471,6 +471,11 @@ const defaultTargetPositions = [
   '全栈开发工程师',
   '数据分析师',
   '数据开发工程师',
+  '秘书',
+  '文秘',
+  '行政助理',
+  '办公室文员',
+  '经理助理',
   'UI设计师',
 ]
 const targetPositionOptions = computed(() => {

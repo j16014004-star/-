@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { FolderOpen } from '@element-plus/icons-vue'
+import { FolderOpened } from '@element-plus/icons-vue'
 
 const props = withDefaults(defineProps<{
   message?: string
@@ -15,7 +15,7 @@ const props = withDefaults(defineProps<{
     <!-- Icon -->
     <div class="empty-icon mb-4 text-gray-300">
       <el-icon :size="64">
-        <component :is="icon || FolderOpen" />
+        <component :is="icon || FolderOpened" />
       </el-icon>
     </div>
 

@@ -1,244 +1,158 @@
 <template>
-  <div class="interview-report-view p-6 bg-gray-50 min-h-screen">
-    <div class="flex items-center justify-between mb-6">
-      <div>
-        <h1 class="text-2xl font-bold text-gray-800">面试报告</h1>
-        <p class="text-gray-500 text-sm mt-1">Vue3技术面试 · 阿里巴巴</p>
+  <div class="report-page p-6 min-h-screen" v-loading="loading">
+    <template v-if="data">
+      <div class="flex justify-between items-center mb-6">
+        <div><h1 class="text-2xl font-bold">面试评估报告</h1>
+          <p class="text-gray-500 mt-1">{{ data.target_role }} · {{ data.company || '模拟面试' }}</p>
+        </div>
+        <div class="flex gap-2">
+          <el-button @click="$router.push('/interview')">返回面试大厅</el-button>
+          <el-button type="primary" :loading="retrying" @click="retryWeaknesses">针对薄弱项再面试</el-button>
+        </div>
       </div>
-      <div class="flex gap-2">
-        <el-button @click="$router.back()">返回大厅</el-button>
-        <el-button type="primary" @click="$router.push('/interview')">重新面试</el-button>
-      </div>
-    </div>
 
-    <!-- Overall Score -->
-    <el-card class="mb-6 border-0 bg-gradient-to-r from-indigo-50 to-blue-50">
-      <div class="flex items-center justify-around py-8">
-        <div class="text-center">
-          <ScoreRing :score="report.overallScore" :size="120" :stroke-width="8" />
-          <div class="text-lg font-bold text-gray-800 mt-2">综合评分</div>
-          <div class="text-sm text-gray-500">{{ getScoreLevel(report.overallScore) }}</div>
-        </div>
-        <div class="text-center">
-          <div class="text-3xl font-bold text-indigo-600">{{ report.totalQuestions }}</div>
-          <div class="text-sm text-gray-500 mt-1">问题总数</div>
-        </div>
-        <div class="text-center">
-          <div class="text-3xl font-bold text-green-600">{{ report.avgScore }}</div>
-          <div class="text-sm text-gray-500 mt-1">平均得分</div>
-        </div>
-        <div class="text-center">
-          <div class="text-3xl font-bold text-blue-600">{{ report.duration }}</div>
-          <div class="text-sm text-gray-500 mt-1">用时（分钟）</div>
-        </div>
-      </div>
-    </el-card>
-
-    <el-row :gutter="20" class="mb-6">
-      <!-- Dimension Scores -->
-      <el-col :span="12">
-        <el-card class="border-0">
-          <template #header><span class="font-semibold">维度评分</span></template>
-          <div class="space-y-5">
-            <div v-for="(score, key) in report.dimensionScores" :key="key">
-              <div class="flex items-center justify-between text-sm mb-1">
-                <span class="text-gray-700 font-medium">{{ getDimensionLabel(key as keyof typeof report.dimensionScores) }}</span>
-                <span class="font-bold" :class="getScoreColor(score)">{{ score }}分</span>
-              </div>
-              <el-progress
-                :percentage="score"
-                :color="score >= 80 ? '#10b981' : score >= 60 ? '#f59e0b' : '#ef4444'"
-                :stroke-width="8"
-              />
-            </div>
+      <el-card class="score-card mb-6" shadow="never">
+        <div class="score-grid">
+          <div><ScoreRing :score="data.report.overall_score" :size="126" :stroke-width="9" />
+            <b>综合评分 · {{ scoreLevel(data.report.overall_score) }}</b>
           </div>
-        </el-card>
-      </el-col>
+          <div><strong>{{ data.questions.length }}</strong><span>已回答题目</span></div>
+          <div><strong>{{ totalMinutes }}</strong><span>总用时（分钟）</span></div>
+          <div><strong>{{ data.question_bank.length }}</strong><span>针对性练习题</span></div>
+        </div>
+      </el-card>
 
-      <!-- Summary -->
-      <el-col :span="12">
-        <el-card class="border-0">
-          <template #header><span class="font-semibold">面试总结</span></template>
-          <p class="text-sm text-gray-600 leading-relaxed">{{ report.summary }}</p>
-        </el-card>
-      </el-col>
-    </el-row>
+      <el-row :gutter="20" class="mb-6">
+        <el-col :span="12"><el-card shadow="never" class="full-card">
+          <template #header><strong>能力维度</strong></template>
+          <div v-for="(score, key) in data.report.dimension_scores" :key="key" class="dimension">
+            <div><span>{{ dimensionLabel(key) }}</span><b>{{ score }}分</b></div>
+            <el-progress :percentage="score" :color="scoreColor(score)" :stroke-width="9" />
+          </div>
+        </el-card></el-col>
+        <el-col :span="12"><el-card shadow="never" class="full-card">
+          <template #header><strong>AI 总结</strong></template>
+          <p class="summary">{{ data.report.summary }}</p>
+        </el-card></el-col>
+      </el-row>
 
-    <el-row :gutter="20" class="mb-6">
-      <!-- Strengths -->
-      <el-col :span="12">
-        <el-card class="border-0">
-          <template #header>
-            <div class="flex items-center gap-2">
-              <span class="text-green-500"><el-icon><CircleCheck /></el-icon></span>
-              <span class="font-semibold">优势</span>
-            </div>
-          </template>
-          <ul class="space-y-2">
-            <li v-for="(item, index) in report.strengths" :key="index" class="flex items-start gap-2">
-              <el-icon class="text-green-500 mt-0.5"><Select /></el-icon>
-              <span class="text-sm text-gray-600">{{ item }}</span>
-            </li>
-          </ul>
-        </el-card>
-      </el-col>
+      <el-row :gutter="20" class="mb-6">
+        <el-col :span="12"><el-card shadow="never">
+          <template #header><strong class="good">能力优势</strong></template>
+          <ul><li v-for="item in data.report.strengths" :key="item">✓ {{ item }}</li></ul>
+        </el-card></el-col>
+        <el-col :span="12"><el-card shadow="never">
+          <template #header><strong class="warn">重点薄弱项</strong></template>
+          <ul><li v-for="item in data.report.weaknesses" :key="item">• {{ item }}</li></ul>
+        </el-card></el-col>
+      </el-row>
 
-      <!-- Weaknesses -->
-      <el-col :span="12">
-        <el-card class="border-0">
-          <template #header>
-            <div class="flex items-center gap-2">
-              <span class="text-orange-500"><el-icon><WarningFilled /></el-icon></span>
-              <span class="font-semibold">待提升</span>
-            </div>
-          </template>
-          <ul class="space-y-2">
-            <li v-for="(item, index) in report.weaknesses" :key="index" class="flex items-start gap-2">
-              <el-icon class="text-orange-500 mt-0.5"><Warning /></el-icon>
-              <span class="text-sm text-gray-600">{{ item }}</span>
-            </li>
-          </ul>
-        </el-card>
-      </el-col>
-    </el-row>
+      <el-card shadow="never" class="mb-6">
+        <template #header><strong>改进计划</strong></template>
+        <el-row :gutter="20">
+          <el-col :span="12"><h3>未来 7 天</h3>
+            <ol><li v-for="(item, i) in data.report.improvement_plan_7_days" :key="item">
+              <span>{{ i + 1 }}</span>{{ item }}
+            </li></ol>
+          </el-col>
+          <el-col :span="12"><h3>未来 30 天</h3>
+            <ol><li v-for="(item, i) in data.report.improvement_plan_30_days" :key="item">
+              <span>{{ i + 1 }}</span>{{ item }}
+            </li></ol>
+          </el-col>
+        </el-row>
+      </el-card>
 
-    <!-- Question Review -->
-    <el-card class="border-0 mb-6">
-      <template #header><span class="font-semibold">题目回顾</span></template>
-      <div class="space-y-4">
+      <el-card shadow="never" class="mb-6">
+        <template #header><strong>逐题复盘</strong></template>
         <el-collapse>
-          <el-collapse-item v-for="(item, index) in report.questionReview" :key="item.id" :title="`Q${index + 1}：${item.question.substring(0, 50)}...`">
-            <div class="text-sm text-gray-700 leading-relaxed mb-3">
-              <strong>问题：</strong>{{ item.question }}
-            </div>
-            <div class="mb-3 p-3 rounded-lg bg-blue-50 border border-blue-100">
-              <div class="text-xs text-blue-500 font-medium mb-1">你的回答：</div>
-              <div class="text-sm text-gray-700 leading-relaxed">{{ item.answer }}</div>
-            </div>
-            <div v-if="item.feedback" class="p-3 rounded-lg bg-green-50 border border-green-100">
-              <div class="flex items-center justify-between mb-1">
-                <div class="text-xs text-green-500 font-medium">AI反馈：</div>
-                <el-tag :type="item.score >= 80 ? 'success' : item.score >= 60 ? 'warning' : 'danger'" size="small">
-                  {{ item.score }}分
-                </el-tag>
-              </div>
-              <div class="text-sm text-gray-700 leading-relaxed">{{ item.feedback }}</div>
+          <el-collapse-item v-for="question in data.questions" :key="question.id"
+            :title="`Q${question.order_no} · ${question.question}（${question.score ?? 0}分）`">
+            <div class="review-block answer"><b>你的回答</b><p>{{ question.answer || '未作答' }}</p></div>
+            <div class="review-block feedback"><b>AI 评价</b><p>{{ question.feedback || '无' }}</p></div>
+            <div v-if="question.missing_points?.length" class="review-block missing">
+              <b>缺失要点</b><el-tag v-for="item in question.missing_points" :key="item" type="warning">{{ item }}</el-tag>
             </div>
           </el-collapse-item>
         </el-collapse>
-      </div>
-    </el-card>
+      </el-card>
 
-    <!-- Suggestions -->
-    <el-card class="border-0">
-      <template #header>
-        <div class="flex items-center gap-2">
-          <span class="text-xl">&#x1F4A1;</span>
-          <span class="font-semibold">改进建议</span>
+      <el-card shadow="never">
+        <template #header><strong>薄弱项专属题库</strong></template>
+        <div v-for="(item, index) in data.question_bank" :key="item.id" class="bank-item">
+          <div class="flex justify-between"><b>{{ index + 1 }}. {{ item.question }}</b>
+            <el-tag>{{ difficultyLabel(item.difficulty) }}</el-tag></div>
+          <p>针对：{{ item.weakness }}</p>
+          <el-collapse><el-collapse-item title="查看参考要点">
+            <ul><li v-for="point in item.reference_points" :key="point">{{ point }}</li></ul>
+          </el-collapse-item></el-collapse>
         </div>
-      </template>
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div v-for="(suggestion, index) in report.suggestions" :key="index" class="p-4 rounded-xl bg-gradient-to-br from-gray-50 to-gray-100 border border-gray-200">
-          <div class="flex items-start gap-3">
-            <div class="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm flex-shrink-0">
-              {{ index + 1 }}
-            </div>
-            <div>
-              <div class="font-medium text-gray-800 mb-1">{{ suggestion.title }}</div>
-              <div class="text-sm text-gray-500">{{ suggestion.desc }}</div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </el-card>
+      </el-card>
+    </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import ScoreRing from '@/components/business/ScoreRing.vue'
-import { CircleCheck, Select, WarningFilled, Warning } from '@element-plus/icons-vue'
 import { interviewApi } from '@/api/interview'
+import type { InterviewReportDetail } from '@/api/types/interview'
 
 const route = useRoute()
 const router = useRouter()
-const interviewId = Number(route.params.id) || 1
-const isLoading = ref(false)
+const interviewId = Number(route.params.id)
+const data = ref<InterviewReportDetail | null>(null)
+const loading = ref(false)
+const retrying = ref(false)
+const totalMinutes = computed(() => Math.max(1, Math.round(
+  (data.value?.questions.reduce((n, q) => n + (q.duration_seconds || 0), 0) || 0) / 60
+)))
 
-const report = ref<any>({
-  overallScore: 0,
-  totalQuestions: 0,
-  avgScore: 0,
-  duration: 0,
-  dimensionScores: {},
-  summary: '',
-  strengths: [],
-  weaknesses: [],
-  suggestions: [],
-  questionReview: [],
-})
-
-function getScoreLevel(score: number): string {
-  if (score >= 90) return '优秀'
-  if (score >= 80) return '良好'
-  if (score >= 60) return '一般'
-  return '需要改进'
+async function load() {
+  loading.value = true
+  try { data.value = (await interviewApi.getReport(interviewId)).data }
+  catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || '加载面试报告失败')
+    if (error.response?.status === 404) router.replace(`/interview/${interviewId}`)
+  } finally { loading.value = false }
 }
-
-function getScoreColor(score: number): string {
-  if (score >= 80) return 'text-green-500'
-  if (score >= 60) return 'text-yellow-500'
-  return 'text-red-500'
-}
-
-function getDimensionLabel(key: string): string {
-  const labels: Record<string, string> = {
-    technical: '技术深度',
-    behavioral: '行为表现',
-    communication: '沟通表达',
-    logic: '逻辑思维',
-  }
-  return labels[key] || key
-}
-
-// 从后端 API 加载面试报告
-async function loadReport() {
-  isLoading.value = true
+async function retryWeaknesses() {
+  retrying.value = true
   try {
-    const response = await interviewApi.getReport(interviewId)
-    const data = response.data
-    report.value = {
-      overallScore: data.overall_score || 0,
-      totalQuestions: data.total_questions || 0,
-      avgScore: data.avg_score || 0,
-      duration: data.duration || 0,
-      dimensionScores: data.dimension_scores || {},
-      summary: data.summary || '',
-      strengths: data.strengths || [],
-      weaknesses: data.weaknesses || [],
-      suggestions: data.suggestions || [],
-      questionReview: data.question_review || [],
-    }
-  } catch (error) {
-    ElMessage.error('加载面试报告失败')
-  } finally {
-    isLoading.value = false
-  }
+    const response = await interviewApi.retryWeaknesses(interviewId)
+    ElMessage.success('薄弱项专属复试已生成')
+    await router.push(`/interview/${response.data.id}`)
+  } catch (error: any) {
+    ElMessage.error(error.response?.data?.detail || '生成薄弱项复试失败')
+  } finally { retrying.value = false }
 }
-
-onMounted(() => {
-  loadReport()
-})
+const scoreLevel = (v: number) => v >= 90 ? '优秀' : v >= 80 ? '良好' : v >= 60 ? '合格' : '需要提升'
+const scoreColor = (v: number) => v >= 80 ? '#10b981' : v >= 60 ? '#f59e0b' : '#ef4444'
+const dimensionLabel = (v: string) => ({ professional: '专业能力', analysis: '分析能力', evidence: '实践证据', communication: '沟通结构' }[v] || v)
+const difficultyLabel = (v: string) => ({ junior: '初级', middle: '中级', senior: '高级' }[v] || v)
+onMounted(load)
 </script>
 
 <style scoped>
-.interview-report-view :deep(.el-card) {
-  border-radius: 16px;
-}
-:deep(.el-button--primary) {
-  border-radius: 10px;
-  font-weight: 500;
-}
+.report-page { background:var(--app-bg, #f6f8fb); color:var(--app-text, #1f2937); }
+.report-page :deep(.el-card) { border-radius:14px; }
+.score-card { background:linear-gradient(120deg, #eef2ff, #eff6ff); }
+.score-grid { display:grid; grid-template-columns:2fr 1fr 1fr 1fr; align-items:center; text-align:center; padding:22px; }
+.score-grid > div { display:flex; flex-direction:column; align-items:center; gap:8px; }
+.score-grid strong { font-size:30px; color:#4f46e5; }
+.score-grid span { color:#6b7280; }
+.full-card { height:100%; }
+.dimension { margin-bottom:18px; }.dimension > div { display:flex; justify-content:space-between; margin-bottom:5px; }
+.summary { line-height:1.9; white-space:pre-wrap; }
+ul { display:grid; gap:10px; line-height:1.7; }.good { color:#059669; }.warn { color:#d97706; }
+h3 { font-weight:700; margin-bottom:14px; }
+ol { display:grid; gap:10px; } ol li { display:flex; gap:10px; align-items:flex-start; }
+ol span { width:24px; height:24px; border-radius:50%; background:#eef2ff; color:#4f46e5; display:grid; place-items:center; flex:none; }
+.review-block { padding:14px; border-radius:10px; margin-bottom:10px; }.review-block p { margin-top:7px; line-height:1.7; white-space:pre-wrap; }
+.answer { background:#eff6ff; }.feedback { background:#ecfdf5; }.missing { background:#fffbeb; }
+.missing .el-tag { margin:8px 8px 0 0; }
+.bank-item { padding:16px; border:1px solid var(--el-border-color-lighter); border-radius:10px; margin-bottom:12px; }
+.bank-item > p { color:#d97706; margin:8px 0; font-size:13px; }
 </style>

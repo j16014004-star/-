@@ -288,6 +288,10 @@
               <el-tag v-for="skill in job.skills" :key="skill" size="small" effect="light">{{ skill }}</el-tag>
             </div>
 
+            <div class="mb-4 line-clamp-3 min-h-12 text-xs leading-5 text-gray-500">
+              {{ job.description || '点击“工作详情”查看完整岗位要求。' }}
+            </div>
+
             <div class="mb-4 text-xs text-gray-500">
               <div class="mb-1 font-medium">匹配原因：</div>
               <ul class="list-inside list-disc space-y-1">
@@ -308,10 +312,11 @@
                 :icon="Position"
                 :loading="applyingId === job.id"
                 :disabled="!job.isActive || !currentResumeOption"
-                @click="handleApply(job)"
+                @click="handleAiApply(job)"
               >
-                记录投递
+                AI 帮你投
               </el-button>
+              <el-button size="small" @click="openDetail(job.id)">工作详情</el-button>
               <el-button size="small" :icon="TopRight" :disabled="!job.sourceUrl" @click="openSource(job)">
                 原站
               </el-button>
@@ -410,9 +415,9 @@
               :icon="Position"
               :loading="applyingId === detailJob.id"
               :disabled="!detailJob.isActive || !currentResumeOption"
-              @click="handleApply(detailJob)"
+              @click="handleAiApply(detailJob)"
             >
-              记录投递
+              AI 帮你投
             </el-button>
             <el-button :icon="TopRight" :disabled="!detailJob.sourceUrl" @click="openSource(detailJob)">
               打开原站
@@ -451,8 +456,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { Briefcase, Link, Position, Refresh, Timer, TopRight, Upload } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { jobApi } from '@/api/job'
+import { hrApi } from '@/api/hr'
 import { resumeApi } from '@/api/resume'
 import type { Job, Resume, ResumeOptimizeResult } from '@/types'
 import type { JobCrawlDiagnostics, JobPlatform, JobRecommendTask, JobResumeSource } from '@/api/types/job'
@@ -540,7 +546,8 @@ let backgroundStatusTimer: number | undefined
 
 const defaultTargetRoleOptions = [
   'Python后端开发工程师', 'Java开发工程师', 'Web前端开发工程师', '数据分析师',
-  '产品经理', '测试工程师', '运维工程师', '厨师',
+  '产品经理', '测试工程师', '运维工程师', '秘书', '文秘', '行政助理',
+  '办公室文员', '经理助理', '厨师',
 ]
 const cityOptions = [
   '北京', '上海', '广州', '深圳', '杭州', '成都', '西安', '武汉', '南京', '重庆',
@@ -631,6 +638,8 @@ const startButtonText = computed(() => {
   if (['success', 'no_results', 'failed'].includes(flowStatus.value)) return '重新抓取最新岗位'
   return '登录并生成推荐'
 })
+
+const RECOMMENDATION_STALE_MINUTES = 15
 
 const statusTitle = computed(() => {
   const titles: Record<FlowStatus, string> = {
@@ -725,6 +734,10 @@ async function restoreCurrentTask() {
     }
     if (task.status === 'success' || task.status === 'no_results') {
       await loadRecommendationResults()
+      if (isRecommendationStale(task)) {
+        statusMessage.value = `岗位结果已超过${RECOMMENDATION_STALE_MINUTES}分钟，建议重新抓取最新岗位`
+        ElMessage.warning(statusMessage.value)
+      }
     } else if (['pending', 'crawling', 'matching'].includes(task.status)) {
       startTaskPolling()
     }
@@ -822,6 +835,8 @@ function goUploadResume() {
 
 async function handleStartFlow() {
   if (isBusy.value) return
+  const forceRefresh = Boolean(taskId.value)
+    && !['waiting_login', 'pending', 'crawling', 'matching'].includes(flowStatus.value)
   const selectedResume = currentResumeOption.value
   if (!selectedResume) {
     ElMessage.warning('请先上传简历')
@@ -864,13 +879,19 @@ async function handleStartFlow() {
       target_role: selectedTargetRole.value.trim(),
       target_city: selectedCity.value,
       limit: 20,
+      force_refresh: forceRefresh,
     })
     const session = response.data
     loginSessionId.value = session.login_session_id
     taskId.value = session.recommend_task_id || ''
+    if (session.status === 'waiting_login' && session.browser_url) {
+      window.open(session.browser_url, '_blank', 'noopener,noreferrer')
+    }
     statusMessage.value = session.status === 'logged_in'
       ? '已检测到登录态，正在生成岗位推荐'
-      : '请在后端弹出的受控浏览器中完成58同城登录'
+      : session.login_mode === 'remote_browser'
+        ? '请在新打开的远程受控浏览器中完成58同城登录'
+        : '请在后端弹出的受控浏览器中完成58同城登录'
     progress.value = 10
 
     if (session.status === 'logged_in') {
@@ -1084,6 +1105,12 @@ function getTimeValue(value?: string) {
   return Number.isNaN(time) ? 0 : time
 }
 
+function isRecommendationStale(task: JobRecommendTask) {
+  const completedAt = getTimeValue(task.finished_at || task.created_at)
+  return completedAt > 0
+    && Date.now() - completedAt >= RECOMMENDATION_STALE_MINUTES * 60 * 1000
+}
+
 function getSourceName(source?: string, sourceName?: string) {
   if (sourceName) return sourceName
   const sourceMap: Record<string, string> = {
@@ -1153,22 +1180,63 @@ function openSource(job: JobItem) {
   window.open(job.sourceUrl, '_blank', 'noopener,noreferrer')
 }
 
-async function handleApply(job: JobItem) {
+async function handleAiApply(job: JobItem) {
   const selectedResume = currentResumeOption.value
   if (!selectedResume) {
     ElMessage.warning('请先上传简历')
     return
   }
+  const source = job.source || selectedSource.value
+  if (!source) {
+    ElMessage.warning('当前岗位缺少招聘平台信息，无法启动 AI 投递')
+    return
+  }
   applyingId.value = job.id
   try {
-    await jobApi.apply(job.id, {
+    const response = await hrApi.checkPreflight({ job_id: job.id, source })
+    if (!response.data.can_start || !response.data.manual_login_verified) {
+      const platform = platforms.value.find((item) => item.source === source)
+      if (platform) platform.login_status = response.data.platform_login_status
+      await ElMessageBox.alert(
+        response.data.reason || `请先在后端打开的${response.data.source_name || '招聘平台'}受控浏览器中，由你本人手动完成登录。登录成功后才能启动自动投递。`,
+        '需要先手动登录第三方网站',
+        { type: 'warning', confirmButtonText: '我知道了' },
+      )
+      return
+    }
+    if (
+      response.data.next_action === 'resume_communication'
+      && response.data.workspace_id
+    ) {
+      ElMessage.info('该岗位已申请，正在进入 HR 沟通')
+      await router.push({
+        path: '/hr',
+        query: { workspace_id: String(response.data.workspace_id) },
+      })
+      return
+    }
+    const workspaceResponse = await hrApi.createWorkspace({
+      job_id: job.id,
+      source,
       resume_id: selectedResume.resumeId,
       resume_source: selectedResume.source,
       resume_optimization_id: selectedResume.optimizationId,
+      automation_mode: 'full_auto',
+      permissions: {
+        auto_apply: true,
+        auto_greeting: true,
+        auto_reply: true,
+        auto_schedule_interview: true,
+      },
+      manual_login_confirmed: true,
     })
-    ElMessage.success('投递意向已记录')
+    ElMessage.success('AI 一键投递已启动，正在进入 HR 助手')
+    await router.push({
+      path: '/hr',
+      query: { workspace_id: String(workspaceResponse.data.id) },
+    })
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '记录投递意向失败'))
+    ElMessage.error(getErrorMessage(error, '检查第三方平台登录状态失败'))
   } finally {
     applyingId.value = null
   }
@@ -1240,6 +1308,7 @@ function getFailureMessage(code?: string | null) {
     no_matching_jobs: '已采集到岗位，但没有符合当前岗位方向的结果，请调整目标岗位',
     parse_failed: '招聘平台页面结构可能发生变化，岗位解析失败，请稍后重试',
     crawl_failed: '岗位采集遇到网络、浏览器或源站异常，请重新开始',
+    network_access_denied: '运行环境无法访问58同城，请放行Python/Chromium网络后重试',
   }
   return messages[code] || `推荐任务失败（${code}）`
 }

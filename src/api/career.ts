@@ -17,6 +17,7 @@ import type {
   CareerTaskQuestionParams,
   CareerTaskQuestionStartResult,
   CareerAdvanceResult,
+  CareerCompleteAllResult,
   CareerAssessmentResult,
   CareerAssessmentStartResult,
   CareerAssessmentSubmitParams,
@@ -125,6 +126,14 @@ export const careerApi = {
     return asApiPromise(
       request.post<ApiResponse<CareerAdvanceResult>>(
         `/career-plan-executions/${executionPlanId}/advance`,
+      ),
+    )
+  },
+
+  completeAllTasks(executionPlanId: number) {
+    return asApiPromise(
+      request.post<ApiResponse<CareerCompleteAllResult>>(
+        `/career-plan-executions/${executionPlanId}/complete-all`,
       ),
     )
   },

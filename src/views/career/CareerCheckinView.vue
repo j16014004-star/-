@@ -3,7 +3,7 @@
     <div class="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div>
         <h1 class="text-2xl font-bold text-gray-800">计划执行打卡</h1>
-        <p class="mt-1 text-sm text-gray-500">把已确认的职业规划拆成每天可完成的小任务，持续积累进步</p>
+        <p class="mt-1 text-sm text-gray-500">按自己的节奏完成职业规划任务，可跨周、跨阶段学习，不限制每日完成数量</p>
       </div>
       <el-button :icon="Refresh" :loading="loading" @click="loadOverview">刷新进度</el-button>
     </div>
@@ -32,7 +32,7 @@
               </el-tag>
             </div>
             <h2 class="text-xl font-bold text-white">{{ overview.current_stage || '按计划稳步前进' }}</h2>
-            <p class="mt-2 text-sm text-indigo-100">今天是 {{ todayText }}，完成一次任务就是一次有效积累。</p>
+            <p class="mt-2 text-sm text-indigo-100">今天是 {{ todayText }}，你可以按顺序学习，也可以一次完成全部计划。</p>
           </div>
           <div>
             <div class="mb-2 flex items-center justify-between text-sm text-indigo-100">
@@ -58,25 +58,17 @@
       </div>
 
       <el-card
-        v-if="todayCompleted && !advancePromptDismissed"
+        v-if="assessmentReady && !advancePromptDismissed"
         class="mb-6 border-0 completion-card"
         shadow="never"
       >
         <div class="flex flex-col justify-between gap-5 lg:flex-row lg:items-center">
           <div>
             <div class="text-lg font-bold text-gray-800">
-              {{ assessmentReady ? '🎓 当前阶段任务已经完成' : '🎉 今天的计划已经完成' }}
+              🎓 当前阶段任务已经完成
             </div>
             <p class="mt-2 text-sm leading-6 text-gray-600">
-              <template v-if="assessmentReady">
-                AI 将结合本阶段打卡记录、执行备注和学习答疑生成针对性考核，检验你是否真正掌握。
-              </template>
-              <template v-else-if="canAdvance">
-                今天状态不错，可以提前解锁下一项任务；也可以选择今天先到这里，保持稳定节奏。
-              </template>
-              <template v-else>
-                今天没有更多可提前执行的任务，可以安心休息并保持明天的学习节奏。
-              </template>
+              AI 将结合本阶段打卡记录、执行备注和学习答疑生成针对性考核。开始考核不会限制你继续完成其他阶段任务。
             </p>
             <div v-if="overview.stage_progress !== undefined" class="mt-3 max-w-lg">
               <div class="mb-1 flex justify-between text-xs text-gray-500">
@@ -88,17 +80,10 @@
           <div class="flex shrink-0 flex-wrap gap-3">
             <el-button @click="advancePromptDismissed = true">今天先到这里</el-button>
             <el-button
-              v-if="assessmentReady"
               type="warning"
               :loading="startingAssessment"
               @click="handleStartAssessment"
             >开始阶段考核</el-button>
-            <el-button
-              v-else-if="canAdvance"
-              type="primary"
-              :loading="advancing"
-              @click="handleAdvanceNextTask"
-            >继续下一项任务</el-button>
           </div>
         </div>
       </el-card>
@@ -109,17 +94,26 @@
             <template #header>
               <div class="flex items-center justify-between gap-3">
                 <div>
-                  <div class="font-semibold text-gray-800">今日打卡</div>
-                  <div class="mt-1 text-xs text-gray-400">优先完成今天安排的任务，也可以补充执行备注</div>
+                  <div class="font-semibold text-gray-800">全部计划任务</div>
+                  <div class="mt-1 text-xs text-gray-400">所有周次和阶段均已开放，可任意顺序完成，也可一次性全部完成</div>
                 </div>
-                <el-tag type="primary">{{ todayCompletedCount }}/{{ overview.today_tasks.length }}</el-tag>
+                <div class="flex items-center gap-2">
+                  <el-tag type="primary">{{ completedAllCount }}/{{ allTasks.length }}</el-tag>
+                  <el-button
+                    type="success"
+                    size="small"
+                    :loading="completingAll"
+                    :disabled="completedAllCount >= allTasks.length"
+                    @click="handleCompleteAll"
+                  >一键完成全部剩余任务</el-button>
+                </div>
               </div>
             </template>
 
-            <el-empty v-if="!overview.today_tasks.length" description="今天暂时没有安排任务" :image-size="90" />
+            <el-empty v-if="!allTasks.length" description="当前计划暂无任务" :image-size="90" />
             <div v-else class="space-y-3">
               <div
-                v-for="task in overview.today_tasks"
+                v-for="task in allTasks"
                 :key="task.id"
                 class="task-card rounded-xl border p-4"
                 :class="task.status === 'completed' ? 'is-completed' : task.status === 'skipped' ? 'is-skipped' : ''"
@@ -134,6 +128,7 @@
                         {{ task.title }}
                       </span>
                       <span v-if="task.is_required" class="text-xs text-red-400">必做</span>
+                      <el-tag size="small" type="info">第 {{ task.week_no }} 周</el-tag>
                       <el-tag v-if="task.is_advanced" size="small" type="warning">提前执行</el-tag>
                     </div>
                     <p v-if="task.description" class="mt-2 text-sm leading-6 text-gray-500">{{ task.description }}</p>
@@ -303,7 +298,7 @@ const expandedQuestionTaskIds = ref<number[]>([])
 const loadedQuestionTaskIds = ref<number[]>([])
 const loadingQuestionTaskIds = ref<number[]>([])
 const askingTaskIds = ref<number[]>([])
-const advancing = ref(false)
+const completingAll = ref(false)
 const startingAssessment = ref(false)
 const advancePromptDismissed = ref(false)
 const completionPromptShown = ref(false)
@@ -313,27 +308,23 @@ const normalizedProgress = computed(() => {
   return Math.min(100, Math.max(0, Math.round(value)))
 })
 
-const todayCompletedCount = computed(() =>
-  overview.value?.today_tasks.filter((task) => task.status === 'completed').length || 0,
-)
-
-const todayCompleted = computed(() => {
-  if (!overview.value) return false
-  if (overview.value.today_completed !== undefined) return overview.value.today_completed
-  return Boolean(
-    overview.value.today_tasks.length &&
-    overview.value.today_tasks.every((task) => task.status === 'completed'),
-  )
+const allTasks = computed(() => {
+  if (overview.value?.all_tasks?.length) return overview.value.all_tasks
+  const fallback = [
+    ...(overview.value?.today_tasks || []),
+    ...(overview.value?.week_tasks || []),
+  ]
+  return Array.from(new Map(fallback.map((task) => [task.id, task])).values())
 })
 
-const canAdvance = computed(() => Boolean(
-  overview.value?.can_advance ?? overview.value?.next_task_available,
-))
+const completedAllCount = computed(() =>
+  allTasks.value.filter((task) => task.status === 'completed').length,
+)
 
 const assessmentReady = computed(() => Boolean(overview.value?.assessment_ready))
 
 const stats = computed(() => [
-  { label: '连续打卡', value: `${overview.value?.current_streak || 0} 天`, tip: '保持节奏比突击更重要', color: 'text-orange-500' },
+  { label: '连续打卡', value: `${overview.value?.current_streak || 0} 天`, tip: '可按自己的节奏集中完成', color: 'text-orange-500' },
   { label: '最长连续', value: `${overview.value?.longest_streak || 0} 天`, tip: '刷新你的个人纪录', color: 'text-purple-500' },
   { label: '累计完成', value: `${overview.value?.completed_tasks || 0} 项`, tip: '每项任务都有记录', color: 'text-green-600' },
   { label: '当前周次', value: `第 ${overview.value?.current_week || 1} 周`, tip: overview.value?.current_stage || '执行阶段', color: 'text-indigo-600' },
@@ -348,7 +339,7 @@ const loadOverview = async () => {
   try {
     const response = await careerApi.getCurrentExecution()
     overview.value = response.data
-    response.data.today_tasks.forEach((task) => {
+    response.data.all_tasks.forEach((task) => {
       taskNotes[task.id] = task.checkin_note || ''
     })
   } catch {
@@ -366,13 +357,13 @@ const updateTask = async (task: CareerCheckinTask, status: 'completed' | 'pendin
       status,
       note: taskNotes[task.id]?.trim() || undefined,
     })
-    const completedBeforeUpdate = todayCompleted.value
+    const assessmentReadyBeforeUpdate = assessmentReady.value
     overview.value = response.data
-    response.data.today_tasks.forEach((item) => {
+    response.data.all_tasks.forEach((item) => {
       taskNotes[item.id] = item.checkin_note || taskNotes[item.id] || ''
     })
     ElMessage.success(status === 'completed' ? '打卡成功，继续保持！' : status === 'skipped' ? '任务已暂缓' : '已撤销本次打卡')
-    if (status === 'completed' && !completedBeforeUpdate && todayCompleted.value) {
+    if (status === 'completed' && !assessmentReadyBeforeUpdate && assessmentReady.value) {
       advancePromptDismissed.value = false
       void promptNextAction()
     }
@@ -384,24 +375,15 @@ const updateTask = async (task: CareerCheckinTask, status: 'completed' | 'pendin
 }
 
 const promptNextAction = async () => {
-  if (completionPromptShown.value || (!assessmentReady.value && !canAdvance.value)) return
+  if (completionPromptShown.value || !assessmentReady.value) return
   completionPromptShown.value = true
   try {
-    if (assessmentReady.value) {
-      await ElMessageBox.confirm(
-        '当前阶段任务已全部完成，是否现在开始阶段考核？',
-        '阶段任务完成',
-        { confirmButtonText: '开始阶段考核', cancelButtonText: '稍后考核', type: 'success' },
-      )
-      await handleStartAssessment()
-    } else {
-      await ElMessageBox.confirm(
-        '今天的任务已经全部完成，是否提前继续下一项任务？',
-        '今日计划完成',
-        { confirmButtonText: '继续下一项', cancelButtonText: '今天先到这里', type: 'success' },
-      )
-      await handleAdvanceNextTask()
-    }
+    await ElMessageBox.confirm(
+      '当前阶段任务已全部完成，是否现在开始阶段考核？你仍可继续完成其他阶段任务。',
+      '阶段任务完成',
+      { confirmButtonText: '开始阶段考核', cancelButtonText: '稍后考核', type: 'success' },
+    )
+    await handleStartAssessment()
   } catch (error: unknown) {
     if (error !== 'cancel' && error !== 'close') {
       ElMessage.error(getErrorMessage(error, '处理下一步操作失败'))
@@ -411,20 +393,28 @@ const promptNextAction = async () => {
   }
 }
 
-const handleAdvanceNextTask = async () => {
-  if (!overview.value || advancing.value) return
-  advancing.value = true
+const handleCompleteAll = async () => {
+  if (!overview.value || completingAll.value) return
   try {
-    const response = await careerApi.advanceNextTask(overview.value.id)
+    await ElMessageBox.confirm(
+      `确定将剩余 ${allTasks.value.length - completedAllCount.value} 项任务全部标记为已完成吗？每项任务都会保留独立打卡记录。`,
+      '一次性完成全部任务',
+      { confirmButtonText: '确认全部完成', cancelButtonText: '取消', type: 'warning' },
+    )
+    completingAll.value = true
+    const response = await careerApi.completeAllTasks(overview.value.id)
     overview.value = response.data.overview
-    const task = response.data.advanced_task
-    taskNotes[task.id] = task.checkin_note || ''
+    response.data.overview.all_tasks.forEach((task) => {
+      taskNotes[task.id] = task.checkin_note || taskNotes[task.id] || ''
+    })
     advancePromptDismissed.value = false
-    ElMessage.success(`已提前解锁：${task.title}`)
+    ElMessage.success(`已完成剩余 ${response.data.completed_count} 项任务`)
   } catch (error: unknown) {
-    ElMessage.error(getErrorMessage(error, '提前解锁下一任务失败'))
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(getErrorMessage(error, '一次性完成任务失败'))
+    }
   } finally {
-    advancing.value = false
+    completingAll.value = false
   }
 }
 

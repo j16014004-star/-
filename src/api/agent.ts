@@ -1,33 +1,40 @@
 import request from '@/utils/request'
 import type { ApiResponse, AgentTask } from '@/types'
 import type { AgentTaskCreateParams } from './types/agent'
+import type { AxiosResponse } from 'axios'
+
+type ApiPromise<T> = Promise<ApiResponse<T>>
+
+function asApiPromise<T>(promise: Promise<AxiosResponse<ApiResponse<T>>>): ApiPromise<T> {
+  return promise as unknown as ApiPromise<T>
+}
 
 export const agentApi = {
   getTasks() {
-    return request.get<ApiResponse<AgentTask[]>>('/agent/tasks')
+    return asApiPromise(request.get<ApiResponse<AgentTask[]>>('/agent/tasks'))
   },
 
   getTaskDetail(id: number) {
-    return request.get<ApiResponse<AgentTask>>(`/agent/tasks/${id}`)
+    return asApiPromise(request.get<ApiResponse<AgentTask>>(`/agent/tasks/${id}`))
   },
 
   createTask(params: AgentTaskCreateParams) {
-    return request.post<ApiResponse<AgentTask>>('/agent/tasks', params)
+    return asApiPromise(request.post<ApiResponse<AgentTask>>('/agent/tasks', params))
   },
 
   startTask(id: number) {
-    return request.post<ApiResponse<AgentTask>>(`/agent/tasks/${id}/start`)
+    return asApiPromise(request.post<ApiResponse<AgentTask>>(`/agent/tasks/${id}/start`))
   },
 
   pauseTask(id: number) {
-    return request.post<ApiResponse<AgentTask>>(`/agent/tasks/${id}/pause`)
+    return asApiPromise(request.post<ApiResponse<AgentTask>>(`/agent/tasks/${id}/pause`))
   },
 
   stopTask(id: number) {
-    return request.post<ApiResponse<AgentTask>>(`/agent/tasks/${id}/stop`)
+    return asApiPromise(request.post<ApiResponse<AgentTask>>(`/agent/tasks/${id}/stop`))
   },
 
   deleteTask(id: number) {
-    return request.delete<ApiResponse<null>>(`/agent/tasks/${id}`)
+    return asApiPromise(request.delete<ApiResponse<null>>(`/agent/tasks/${id}`))
   },
 }

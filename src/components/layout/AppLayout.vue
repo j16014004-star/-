@@ -1,13 +1,10 @@
 <script setup lang="ts">
 import AppSidebar from './AppSidebar.vue'
 import AppHeader from './AppHeader.vue'
-import { useAppStore } from '@/stores/app'
-
-const appStore = useAppStore()
 </script>
 
 <template>
-  <div class="app-layout h-screen flex overflow-hidden bg-gray-50">
+  <div class="app-layout h-screen flex overflow-hidden bg-gray-50 dark:bg-slate-950">
     <!-- Sidebar -->
     <AppSidebar />
 

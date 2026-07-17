@@ -27,10 +27,14 @@ describe('Router 配置', () => {
 
   it('包含所有主要业务路由名称', () => {
     const routeNames = router.getRoutes().map((r) => r.name as string)
-    const expected = ['login', 'register', 'dashboard', 'resume-list', 'resume-upload', 'resume-detail', 'resume-optimize', 'career', 'career-check-in', 'career-assessment', 'jobs', 'chat', 'agent', 'hr', 'interview', 'interview-room', 'interview-report', 'profile']
+    const expected = ['login', 'register', 'dashboard', 'resume-list', 'resume-upload', 'resume-detail', 'resume-optimize', 'career', 'career-check-in', 'career-assessment', 'jobs', 'agent', 'hr', 'interview', 'interview-room', 'interview-report', 'profile']
     expected.forEach((name) => {
       expect(routeNames).toContain(name)
     })
+  })
+
+  it('不再包含独立哈基米AI聊天路由', () => {
+    expect(router.getRoutes().find((r) => r.name === 'chat')).toBeUndefined()
   })
 
   it('未匹配路由重定向到首页', () => {

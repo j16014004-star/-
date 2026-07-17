@@ -84,12 +84,6 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '岗位推荐', icon: 'Briefcase' },
       },
       {
-        path: 'chat',
-        name: 'chat',
-        component: () => import('@/views/chat/ChatAssistantView.vue'),
-        meta: { title: '哈基米AI', icon: 'ChatDotSquare' },
-      },
-      {
         path: 'agent',
         name: 'agent',
         component: () => import('@/views/agent/AgentTaskView.vue'),
@@ -148,7 +142,7 @@ const router = createRouter({
 })
 
 // Navigation guard
-router.beforeEach((to, from, next) => {
+router.beforeEach((to, _from, next) => {
   let token = storage.get<string>(TOKEN_KEY)
   const tokenExpiresAt = storage.get<number>('token_expires_at')
   const tokenExpired = Boolean(token && tokenExpiresAt && Date.now() >= tokenExpiresAt)

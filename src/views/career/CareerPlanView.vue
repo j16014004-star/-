@@ -446,6 +446,8 @@ const regenerateFocusAreas = ref<string[]>([])
 const skillOptions = [
   '沟通表达', '团队协作', '项目管理', 'Office', '数据分析', 'SQL', 'Python', 'Java',
   'Go', 'FastAPI', 'Vue.js', 'React', 'TypeScript', 'Node.js', 'Docker', 'Linux', '产品设计',
+  '公文写作', '会议组织', '会议纪要', '档案管理', '办公室管理', '行政管理',
+  '商务礼仪', '沟通协调', 'Word', 'Excel', 'PowerPoint', 'WPS',
 ]
 
 const form = reactive<CareerFormState>({

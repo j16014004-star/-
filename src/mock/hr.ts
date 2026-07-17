@@ -72,7 +72,7 @@ export function setupHRMock() {
   })
 
   // Reply
-  registerMock('post', '/hr/reply', (params: any) => {
+  registerMock('post', '/hr/reply', () => {
     return null
   })
 

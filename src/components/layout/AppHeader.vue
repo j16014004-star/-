@@ -32,10 +32,10 @@ onMounted(() => {
   const storedUser = storage.get<any>(USER_KEY)
   if (storedUser) {
     if (storedUser.username) appStore.user.name = storedUser.username
-    if (storedUser.avatar) appStore.user.avatar = storedUser.avatar
+    if (storedUser.avatar) appStore.setAvatar(storedUser.avatar)
   }
   const storedAvatar = localStorage.getItem('userAvatar')
-  if (storedAvatar) appStore.user.avatar = storedAvatar
+  if (storedAvatar) appStore.setAvatar(storedAvatar)
 })
 
 async function handleCommand(command: string) {

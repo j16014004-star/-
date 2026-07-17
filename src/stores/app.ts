@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed, watch } from 'vue'
+import { resolveMediaUrl } from '@/utils/media'
 
 export const useAppStore = defineStore('app', () => {
   // 从 localStorage 读取初始值
@@ -64,8 +65,9 @@ export const useAppStore = defineStore('app', () => {
   }
 
   function setAvatar(avatarUrl: string) {
-    user.value.avatar = avatarUrl
-    localStorage.setItem('userAvatar', avatarUrl)
+    const resolvedUrl = resolveMediaUrl(avatarUrl)
+    user.value.avatar = resolvedUrl
+    localStorage.setItem('userAvatar', resolvedUrl)
   }
 
   function logout() {
