@@ -321,3 +321,227 @@ html.dark ::-webkit-scrollbar-thumb:hover {
 .chat-scrollbar::-webkit-scrollbar {
   width: 4px;
 }
+
+/* Classic desktop theme for every authenticated workspace module. */
+.workspace-content > div,
+.workspace-content > main {
+  min-height: 100% !important;
+  padding: 12px !important;
+  background: #eef4f8 !important;
+}
+
+.workspace-content h1 {
+  color: #1d567b !important;
+  font-size: 20px !important;
+  letter-spacing: 0.02em;
+}
+
+.workspace-content h1 + p {
+  color: #71889a !important;
+  font-size: 12px !important;
+}
+
+.workspace-content .el-card {
+  overflow: hidden;
+  border: 1px solid #b7cddd !important;
+  border-radius: 6px !important;
+  background: #ffffff !important;
+  box-shadow: 0 1px 3px rgba(20, 76, 115, 0.08) !important;
+}
+
+.workspace-content .el-card__header {
+  min-height: 34px;
+  padding: 8px 12px !important;
+  color: #28516e !important;
+  border-bottom: 1px solid #c5d8e6 !important;
+  background: linear-gradient(#fbfdff, #e6f1f8) !important;
+}
+
+.workspace-content .el-card__header .font-semibold,
+.workspace-content .el-card__header .font-bold {
+  color: #28516e !important;
+  font-size: 12px !important;
+}
+
+.workspace-content .rounded-xl,
+.workspace-content .rounded-2xl,
+.workspace-content .rounded-3xl {
+  border-radius: 6px !important;
+}
+
+.workspace-content .rounded-lg {
+  border-radius: 5px !important;
+}
+
+.workspace-content .bg-gray-50,
+.workspace-content .bg-slate-50 {
+  background-color: #f3f8fb !important;
+}
+
+.workspace-content .bg-gradient-to-r,
+.workspace-content .bg-gradient-to-br,
+.workspace-content .progress-hero {
+  color: #ffffff !important;
+  background: linear-gradient(135deg, #159bd8 0%, #1686c7 55%, #397dd1 100%) !important;
+}
+
+.workspace-content .el-button {
+  border-radius: 4px !important;
+  font-size: 12px;
+}
+
+.workspace-content .el-button--primary {
+  --el-button-bg-color: #168dcc;
+  --el-button-border-color: #0879b8;
+  --el-button-hover-bg-color: #0879b8;
+  --el-button-hover-border-color: #066aa2;
+  background: linear-gradient(#40b7e9, #168dcc) !important;
+  box-shadow: inset 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.workspace-content .el-input__wrapper,
+.workspace-content .el-select__wrapper,
+.workspace-content .el-textarea__inner {
+  border-radius: 4px !important;
+  background: #fbfdff !important;
+  box-shadow: 0 0 0 1px #b9cddd inset !important;
+}
+
+.workspace-content .el-input__wrapper:hover,
+.workspace-content .el-select__wrapper:hover,
+.workspace-content .el-input__wrapper.is-focus,
+.workspace-content .el-select__wrapper.is-focused {
+  box-shadow: 0 0 0 1px #46a9da inset !important;
+}
+
+.workspace-content .el-table {
+  --el-table-border-color: #cedde8;
+  --el-table-header-bg-color: #e9f3f9;
+  --el-table-row-hover-bg-color: #edf9ff;
+  border: 1px solid #c7d9e6;
+  border-radius: 5px;
+}
+
+.workspace-content .el-table th.el-table__cell {
+  color: #345d78;
+  font-size: 11px;
+  font-weight: 700;
+  background: linear-gradient(#f9fcfe, #e5f0f7) !important;
+}
+
+.workspace-content .el-table td.el-table__cell {
+  color: #4d6679;
+  font-size: 12px;
+}
+
+.workspace-content .el-tabs__header {
+  padding: 0 9px;
+  border: 1px solid #bfd3e1;
+  border-radius: 5px 5px 0 0;
+  background: linear-gradient(#fbfdff, #e5f1f8);
+}
+
+.workspace-content .el-tabs__item {
+  height: 36px;
+  color: #56738a;
+  font-size: 12px;
+}
+
+.workspace-content .el-tabs__item.is-active {
+  color: #087ebd;
+  font-weight: 700;
+}
+
+.workspace-content .el-tabs__active-bar {
+  background-color: #168dcc;
+}
+
+.workspace-content .el-alert {
+  border: 1px solid #bdd9e9;
+  border-radius: 5px !important;
+}
+
+.workspace-content .el-tag {
+  border-radius: 4px !important;
+  font-size: 10px;
+}
+
+.workspace-content .el-progress-bar__outer {
+  border-radius: 4px;
+  background: #dceaf3;
+}
+
+.workspace-content .el-progress-bar__inner {
+  border-radius: 4px;
+  background: linear-gradient(90deg, #28a7df, #168dcc);
+}
+
+.workspace-content [class*="shadow-"] {
+  box-shadow: 0 1px 3px rgba(20, 76, 115, 0.08) !important;
+}
+
+.workspace-content .border-gray-100,
+.workspace-content .border-gray-200 {
+  border-color: #cedde8 !important;
+}
+
+.el-dialog {
+  overflow: hidden;
+  border: 1px solid #7faecb;
+  border-radius: 7px !important;
+  box-shadow: 0 16px 42px rgba(5, 39, 73, 0.32) !important;
+}
+
+.el-dialog__header {
+  margin: 0 !important;
+  padding: 10px 14px !important;
+  color: #ffffff;
+  background: linear-gradient(#3bb6e8, #168dcc);
+}
+
+.el-dialog__title,
+.el-dialog__headerbtn .el-dialog__close {
+  color: #ffffff !important;
+  font-size: 13px !important;
+}
+
+.el-dialog__body {
+  padding: 16px !important;
+  background: #f8fbfd;
+}
+
+.el-dialog__footer {
+  padding: 9px 14px !important;
+  border-top: 1px solid #cedde8;
+  background: #eef4f8;
+}
+
+html.dark .workspace-content > div,
+html.dark .workspace-content > main {
+  background: #111827 !important;
+}
+
+html.dark .workspace-content .el-card,
+html.dark .workspace-content .bg-gray-50,
+html.dark .workspace-content .bg-slate-50 {
+  border-color: #334155 !important;
+  background: #1e293b !important;
+}
+
+html.dark .workspace-content .el-card__header,
+html.dark .workspace-content .el-tabs__header {
+  color: #d5e5f2 !important;
+  border-color: #334155 !important;
+  background: #263449 !important;
+}
+
+@media (max-width: 760px) {
+  .workspace-content > div,
+  .workspace-content > main {
+    padding: 7px !important;
+  }
+
+  .workspace-content .el-card__body {
+    padding: 12px;
+  }
+}
