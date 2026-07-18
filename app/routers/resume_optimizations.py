@@ -43,6 +43,7 @@ def serialize_optimization_version(version) -> dict:
         'is_saved': version.is_saved,
         'saved_at': version.saved_at,
         'optimization_summary': version.optimization_summary,
+        'original_content': version.original_content,
         'original': version.original_content,
         'optimized': version.optimized_content,
         'optimized_content': version.optimized_content,

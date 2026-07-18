@@ -140,6 +140,7 @@ class ResumeOptimizationAIOutput(BaseModel):
 class ResumeOptimizationResultResponse(BaseModel):
     id: int
     optimization_summary: str
+    original_content: str
     original: str
     optimized: str
     optimized_content: str

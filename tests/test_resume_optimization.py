@@ -341,6 +341,7 @@ def test_saved_serializer_always_returns_full_original_content():
         created_at=None,
     )
     result = serialize_optimization_version(version)
+    assert result['original_content'] == '完整原始简历\n第二行'
     assert result['original'] == '完整原始简历\n第二行'
 
 
