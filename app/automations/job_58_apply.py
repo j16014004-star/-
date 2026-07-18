@@ -711,8 +711,10 @@ async def read_messages_58(
                         if "im-msg-me" in class_name
                         else infer_message_sender_from_class(class_name)
                     )
-                    if sender is None and "im-msg" in class_name:
-                        sender = "hr"
+                    # Never treat an ambiguous generic `im-msg` node as an
+                    # inbound HR message. The current 58 WebIM uses that class
+                    # for both directions; guessing here can trigger a reply
+                    # to the user's own greeting.
                     content_node = node.locator(
                         ".im-msg-content, [class*='message-content'], "
                         "[class*='msg-content'], .content"

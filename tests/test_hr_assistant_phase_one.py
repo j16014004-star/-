@@ -5,6 +5,7 @@ from app.ai.hr_application_agent import HrApplicationAgent
 from app.automations.job_58_apply import (
     classify_job_page,
     find_58_chat_entry,
+    infer_message_sender_from_class,
     is_direct_58_job_url,
     is_58_webim_url,
     job_titles_match,
@@ -57,6 +58,13 @@ def test_real_58_webim_url_is_recognized():
     assert is_58_webim_url("https://webim.58.com/indexNew?p=rb&_=123")
     assert not is_58_webim_url("https://xa.58.com/job/123456.shtml")
     assert not is_58_webim_url("https://example.com/webim")
+
+
+def test_ambiguous_58_message_class_is_not_assumed_to_be_hr():
+    assert infer_message_sender_from_class("im-msg") is None
+    assert infer_message_sender_from_class("im-msg im-msg-me") is None
+    assert infer_message_sender_from_class("im-msg incoming left") == "hr"
+    assert infer_message_sender_from_class("im-msg outgoing right") == "user"
 
 
 @pytest.mark.asyncio
