@@ -41,7 +41,7 @@
               <span class="text-sm font-medium text-green-600">已保存版本 · 优化后</span>
             </div>
           </template>
-          <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ optimizedText }}</pre>
+          <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ originalText }}</pre>
         </el-card>
       </el-col>
 
@@ -53,7 +53,7 @@
               <span class="text-sm text-gray-500">优化前</span>
             </div>
           </template>
-          <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ originalText }}</pre>
+          <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ optimizedText }}</pre>
         </el-card>
       </el-col>
     </el-row>

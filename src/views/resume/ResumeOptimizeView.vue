@@ -132,7 +132,7 @@
                 <span class="text-green-600 text-sm font-medium">✨ AI优化版</span>
               </div>
             </template>
-            <div class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{{ optimizedContent }}</div>
+            <div class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{{ originalContent }}</div>
           </el-card>
         </el-col>
         <el-col :span="12">
@@ -143,7 +143,7 @@
                 <span class="text-gray-500 text-sm">优化前</span>
               </div>
             </template>
-            <div class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{{ originalContent }}</div>
+            <div class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{{ optimizedContent }}</div>
           </el-card>
         </el-col>
       </el-row>
