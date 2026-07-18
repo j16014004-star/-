@@ -233,27 +233,38 @@ const quickActions = computed(() => [
 // 从后端 API 加载仪表盘数据
 async function loadDashboardData() {
   isLoading.value = true
+  baseStats.value.forEach((item) => {
+    item.value = '0'
+  })
+  activities.value = []
+  upcomingInterviews.value = []
   try {
-    // 并行加载所有数据
-    const [resumeRes, interviewRes, jobRes] = await Promise.all([
+    // 岗位数据必须属于当前用户：没有简历或自己的成功推荐任务时不加载岗位列表。
+    const [resumeRes, interviewRes] = await Promise.all([
       resumeApi.getList({ page: 1, page_size: 10 }).catch(() => null),
-      interviewApi.getList().catch(() => null),
-      jobApi.getRecommendations({ page: 1, page_size: 10 }).catch(() => null)
+      interviewApi.getList().catch(() => null)
     ])
 
     // 更新统计数据
     const resumeItems = resumeRes?.data?.items || []
     const interviews = (interviewRes?.data || []) as unknown as Interview[]
-    const jobItems = jobRes?.data?.items || []
     const resumeCount = resumeRes?.data?.total || 0
     const interviewCount = interviews.length
+    let jobRes = null
+    if (resumeCount > 0) {
+      const currentTaskRes = await jobApi.getCurrentRecommendation().catch(() => null)
+      const currentTask = currentTaskRes?.data?.task
+      if (currentTask && ['success', 'no_results'].includes(currentTask.status)) {
+        jobRes = await jobApi.getRecommendations({ page: 1, page_size: 10 }).catch(() => null)
+      }
+    }
+    const jobItems = jobRes?.data?.items || []
     const jobCount = jobRes?.data?.total || 0
     baseStats.value[0].value = resumeCount.toString()
     baseStats.value[1].value = interviewCount.toString()
     baseStats.value[2].value = jobCount.toString()
 
     // 构建最近动态
-    activities.value = []
     if (resumeItems.length > 0) {
       const latestResume = resumeItems[0]
       activities.value.push({
