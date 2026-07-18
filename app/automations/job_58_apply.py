@@ -152,7 +152,7 @@ async def create_58_browser_context(playwright, storage_state: str):
         )
         return browser, context
     except PlaywrightError as exc:
-        if browser is not None:
+        if browser is not None and not endpoint:
             await browser.close()
         if is_network_access_denied(exc):
             raise PlatformNetworkDenied(
@@ -163,9 +163,19 @@ async def create_58_browser_context(playwright, storage_state: str):
             f"无法启动{target}：{platform_error_message(exc)[:400]}"
         ) from exc
     except BaseException:
-        if browser is not None:
+        if browser is not None and not endpoint:
             await browser.close()
         raise
+
+
+async def close_58_browser_context(browser, context) -> None:
+    """Close only resources owned by this task; never terminate shared CDP Chromium."""
+    try:
+        if context is not None:
+            await context.close()
+    finally:
+        if browser is not None and not settings.PLAYWRIGHT_CDP_ENDPOINT.strip():
+            await browser.close()
 
 
 def infer_message_sender_from_class(class_name: str) -> str | None:
@@ -555,8 +565,7 @@ async def apply_job_58(
                 "resume_verified": True,
             }
         finally:
-            await context.close()
-            await browser.close()
+            await close_58_browser_context(browser, context)
 
 
 async def send_message_58(
@@ -622,8 +631,7 @@ async def send_message_58(
                 "evidence": "消息已出现在会话中",
             }
         finally:
-            await context.close()
-            await browser.close()
+            await close_58_browser_context(browser, context)
 
 
 async def read_messages_58(
@@ -755,5 +763,4 @@ async def read_messages_58(
                 "messages": messages,
             }
         finally:
-            await context.close()
-            await browser.close()
+            await close_58_browser_context(browser, context)

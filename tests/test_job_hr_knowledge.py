@@ -10,6 +10,7 @@ from app.automations.job_58_apply import is_58_webim_url
 from app.automations.job_58_apply import (
     PlatformNetworkDenied,
     create_58_browser_context,
+    close_58_browser_context,
     goto_58_page,
     is_network_access_denied,
     platform_error_message,
@@ -158,3 +159,23 @@ async def test_hr_browser_uses_configured_remote_cdp(monkeypatch, tmp_path):
     browser, context = await create_58_browser_context(Playwright(), str(state))
     assert isinstance(browser, Browser)
     assert context is not None
+
+
+@pytest.mark.asyncio
+async def test_closing_remote_context_does_not_close_shared_browser(monkeypatch):
+    calls = []
+
+    class Browser:
+        async def close(self):
+            calls.append("browser")
+
+    class Context:
+        async def close(self):
+            calls.append("context")
+
+    monkeypatch.setattr(
+        "app.automations.job_58_apply.settings.PLAYWRIGHT_CDP_ENDPOINT",
+        "http://browser:9222",
+    )
+    await close_58_browser_context(Browser(), Context())
+    assert calls == ["context"]

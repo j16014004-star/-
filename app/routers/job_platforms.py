@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -134,6 +135,7 @@ def build_recommend_response(task: JobRecommendTask, message: str) -> dict:
         "message": message,
         "data": {
             "task_id": task.id,
+            "login_session_id": task.login_session_id,
             "status": task.status,
             "resume_id": task.resume_id,
             "resume_source": task.resume_source,
@@ -207,7 +209,34 @@ async def start_login(body: PlatformLoginStartRequest, current_user: User = Depe
     if not resume or resume.status != "completed":
         raise HTTPException(status_code=404, detail="简历不存在、无权访问或尚未处理完成")
 
+    remote_endpoint = settings.PLAYWRIGHT_CDP_ENDPOINT.strip()
+    remote_view_url = settings.PLAYWRIGHT_REMOTE_VIEW_URL.strip()
+    if remote_endpoint and not remote_view_url:
+        raise HTTPException(
+            status_code=503,
+            detail="服务器已连接远程浏览器，但未配置可视化登录地址",
+        )
+    if not remote_endpoint and settings.PLAYWRIGHT_HEADLESS:
+        raise HTTPException(
+            status_code=503,
+            detail="服务器未配置可视化远程浏览器，当前无法完成58同城登录",
+        )
+
     now = utc_now_naive()
+    if settings.PLATFORM_SINGLE_USER_DEMO_MODE and remote_endpoint:
+        other_login = await db.scalar(
+            select(JobPlatformLoginSession.id).where(
+                JobPlatformLoginSession.user_id != current_user.id,
+                JobPlatformLoginSession.source == body.source,
+                JobPlatformLoginSession.status == "waiting_login",
+                JobPlatformLoginSession.expires_at >= now,
+            ).limit(1)
+        )
+        if other_login:
+            raise HTTPException(
+                status_code=409,
+                detail="当前有其他用户正在体验58同城登录，请稍后再试",
+            )
     latest = await get_latest_login_session(db, current_user.id, body.source)
     if latest:
         if sync_saved_login_state(latest, current_user.id, body.source):
@@ -450,6 +479,7 @@ async def get_task_result_list(task_id: str, page: int = Query(1, ge=1), page_si
 def task_status_dict(task: JobRecommendTask) -> dict:
     return {
         "task_id": task.id,
+        "login_session_id": task.login_session_id,
         "status": task.status,
         "progress": task.progress,
         "source": task.source,

@@ -61,8 +61,9 @@ class LoginSessionResponse(BaseModel):
     source: str
     source_name: str
     status: str
-    login_mode: Literal["server_browser"] = "server_browser"
+    login_mode: Literal["server_browser", "remote_browser"] = "server_browser"
     login_url: str
+    browser_url: str | None = None
     expires_at: datetime
     error_message: str | None = None
     recommend_task_id: str | None = None
@@ -73,6 +74,7 @@ class LoginSessionResponse(BaseModel):
 
 class RecommendTaskResponse(BaseModel):
     task_id: str
+    login_session_id: str | None = None
     status: str
     resume_id: int
     resume_source: Literal["original", "optimized"]

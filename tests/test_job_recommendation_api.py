@@ -7,9 +7,46 @@ from fastapi.testclient import TestClient
 from app.core.database import get_db
 from app.core.dependencies import get_current_user
 from app.routers import job_platforms as router_module
+from app.schemas.job_recommendation import LoginSessionResponse
 
 
 NOW = datetime(2026, 7, 16, 18, 0, 0)
+
+
+def test_login_response_schema_accepts_remote_browser_url():
+    value = LoginSessionResponse(
+        login_session_id="session-1",
+        source="58",
+        source_name="58同城",
+        status="waiting_login",
+        login_mode="remote_browser",
+        login_url="https://passport.58.com/login",
+        browser_url="https://example.com/browser",
+        expires_at=NOW,
+    )
+    assert value.login_mode == "remote_browser"
+    assert value.browser_url == "https://example.com/browser"
+
+
+def test_server_headless_login_fails_fast_without_remote_browser(monkeypatch):
+    async def get_resume(*_args, **_kwargs):
+        return SimpleNamespace(id=9, status="completed")
+
+    monkeypatch.setattr(router_module, "get_resume_by_id", get_resume)
+    monkeypatch.setattr(router_module.settings, "PLAYWRIGHT_CDP_ENDPOINT", "")
+    monkeypatch.setattr(router_module.settings, "PLAYWRIGHT_HEADLESS", True)
+    response = TestClient(build_app()).post(
+        "/api/job-platforms/login/start",
+        json={
+            "source": "58",
+            "resume_id": 9,
+            "resume_source": "original",
+            "target_role": "Python后端开发工程师",
+            "target_city": "西安",
+        },
+    )
+    assert response.status_code == 503
+    assert "可视化远程浏览器" in response.json()["detail"]
 
 
 def build_app() -> FastAPI:
@@ -30,6 +67,7 @@ def build_app() -> FastAPI:
 def task(status: str = "success") -> SimpleNamespace:
     return SimpleNamespace(
         id="task-1",
+        login_session_id="session-1",
         status=status,
         progress=100,
         source="58",

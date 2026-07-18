@@ -6,6 +6,7 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import settings
 from app.crud.job_recommendation import (
     create_recommend_task,
     get_active_recommend_task,
@@ -60,6 +61,31 @@ def is_active_task(task: JobRecommendTask | None) -> bool:
     return bool(task and task.status in ACTIVE_TASK_STATUSES)
 
 
+def is_stale_active_task(task: JobRecommendTask | None) -> bool:
+    if not is_active_task(task):
+        return False
+    anchor = (
+        getattr(task, "started_at", None)
+        or getattr(task, "updated_at", None)
+        or getattr(task, "created_at", None)
+    )
+    if not anchor:
+        return False
+    timeout = max(120, int(settings.WORKER_TASK_TIMEOUT_SECONDS) + 60)
+    return (utc_now_naive() - to_naive_utc(anchor)).total_seconds() >= timeout
+
+
+async def expire_stale_active_task(db: AsyncSession, task: JobRecommendTask | None) -> None:
+    if not is_stale_active_task(task):
+        return
+    task.status = "failed"
+    task.progress = 100
+    task.failure_code = "worker_timeout"
+    task.error_message = "上一次岗位抓取任务执行超时，已允许重新创建任务"
+    task.finished_at = utc_now_naive()
+    await db.flush()
+
+
 def task_uses_selection(
     task: JobRecommendTask,
     resume_id: int,
@@ -107,6 +133,7 @@ async def ensure_recommendation_task(
     # 网络重试或连续点击必须复用正在运行的任务，不能把健康任务改成失败。
     # 用户锁保证并发请求串行化，第二个请求会在这里看到第一个活动任务。
     session_task = await get_latest_recommend_task_by_login_session(db, login_session_id, user_id)
+    await expire_stale_active_task(db, session_task)
     if is_active_task(session_task):
         if not task_uses_selection(session_task, resume_id, resume_source, resume_optimization_id):
             raise RecommendationStartError(
@@ -116,7 +143,8 @@ async def ensure_recommendation_task(
         return RecommendationTaskStartResult(session_task, created=False, launched=launched)
 
     active = await get_active_recommend_task(db, user_id, source)
-    if active:
+    await expire_stale_active_task(db, active)
+    if is_active_task(active):
         if not task_uses_selection(active, resume_id, resume_source, resume_optimization_id):
             raise RecommendationStartError(
                 "当前平台已有其他简历的推荐任务正在执行，请等待完成后重试", 409,

@@ -137,6 +137,7 @@ class Settings(BaseSettings):
     JOB_AUTO_REFRESH_ENABLED: bool = True
     HR_MONITOR_ENABLED: bool = True
     HR_MONITOR_INTERVAL_SECONDS: int = 30
+    HR_MONITOR_FAILURE_BACKOFF_SECONDS: int = 300
     JOB_REFRESH_CHECK_MINUTES: int = 15
     CRAWL_DELAY_SECONDS: float = 2.0
     JOB_CRAWL_MAX_QUERIES: int = 6
@@ -150,6 +151,7 @@ class Settings(BaseSettings):
     PLATFORM_STATE_ENCRYPTION_KEY: str = ""
     PLAYWRIGHT_CDP_ENDPOINT: str = ""
     PLAYWRIGHT_REMOTE_VIEW_URL: str = ""
+    PLATFORM_SINGLE_USER_DEMO_MODE: bool = True
     WORKER_BACKEND: str = "subprocess"
     WORKER_TASK_TIMEOUT_SECONDS: int = 900
     WORKER_TASK_MAX_RETRIES: int = 2

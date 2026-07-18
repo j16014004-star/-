@@ -1,4 +1,5 @@
 from types import SimpleNamespace
+from datetime import timedelta
 
 import pytest
 
@@ -24,6 +25,28 @@ class ForceRefreshDB(FakeDB):
         if getattr(query, "is_update", False):
             self.cancelled_active_task = True
         return SimpleNamespace()
+
+
+@pytest.mark.asyncio
+async def test_stale_recommendation_task_is_expired_for_retry(monkeypatch):
+    task = SimpleNamespace(
+        status="crawling",
+        progress=30,
+        failure_code=None,
+        error_message=None,
+        started_at=recommendation_start_service.utc_now_naive() - timedelta(minutes=20),
+        updated_at=None,
+        created_at=None,
+        finished_at=None,
+    )
+    monkeypatch.setattr(
+        recommendation_start_service.settings,
+        "WORKER_TASK_TIMEOUT_SECONDS",
+        300,
+    )
+    await recommendation_start_service.expire_stale_active_task(FakeDB(), task)
+    assert task.status == "failed"
+    assert task.failure_code == "worker_timeout"
 
 
 @pytest.mark.asyncio

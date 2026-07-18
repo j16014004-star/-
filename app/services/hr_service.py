@@ -1567,6 +1567,10 @@ async def hr_monitor_scheduler() -> None:
     from app.core.database import async_session
 
     interval = max(15, int(getattr(settings, "HR_MONITOR_INTERVAL_SECONDS", 30)))
+    failure_backoff = max(
+        interval,
+        int(getattr(settings, "HR_MONITOR_FAILURE_BACKOFF_SECONDS", 300)),
+    )
     while True:
         try:
             async with async_session() as db:
@@ -1577,6 +1581,13 @@ async def hr_monitor_scheduler() -> None:
                             "applied", "communicating",
                             "interview_pending", "interview_scheduled",
                         )),
+                        or_(
+                            HrWorkspace.sync_status != "failed",
+                            HrWorkspace.sync_status.is_(None),
+                            HrWorkspace.last_synced_at.is_(None),
+                            HrWorkspace.last_synced_at
+                            < utc_now_naive() - timedelta(seconds=failure_backoff),
+                        ),
                     )
                 )).all())
             for workspace_id in workspace_ids:

@@ -272,7 +272,8 @@ class Job58PlaywrightCrawler(BaseCrawler):
                         )
             finally:
                 await context.close()
-                await browser.close()
+                if not endpoint:
+                    await browser.close()
         self.last_diagnostics = diagnostics
         print(f"[crawl] done total_jobs={len(results)}", flush=True)
         return results
