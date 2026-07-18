@@ -106,14 +106,20 @@ async def is_logged_in(context: BrowserContext) -> bool:
     pages = [page for page in context.pages if not page.is_closed()]
     if not pages:
         return False
-    url = pages[-1].url.lower()
-    if not all(marker not in url for marker in ("login", "passport", "verify", "antibot")):
-        return False
     cookies = await context.cookies()
     auth_names = {"id58", "PPU", "www58com", "58cooper", "passportAccount"}
-    return any(
+    has_auth_cookie = any(
         cookie.get("name") in auth_names and "58.com" in (cookie.get("domain") or "")
         for cookie in cookies
+    )
+    if not has_auth_cookie:
+        return False
+
+    blocked_markers = ("login", "passport", "verify", "antibot")
+    return any(
+        "58.com" in page.url.lower()
+        and not any(marker in page.url.lower() for marker in blocked_markers)
+        for page in pages
     )
 
 
@@ -154,9 +160,10 @@ async def run_login(session_id: str) -> None:
             browser = await playwright.chromium.connect_over_cdp(
                 settings.PLAYWRIGHT_CDP_ENDPOINT.strip()
             )
+            context = browser.contexts[0] if browser.contexts else await browser.new_context()
         else:
             browser = await playwright.chromium.launch(headless=settings.PLAYWRIGHT_HEADLESS)
-        context = await browser.new_context()
+            context = await browser.new_context()
         page = await context.new_page()
         await page.goto(LOGIN_URLS[session.source], wait_until="domcontentloaded")
         await prefer_qr_login(page)
@@ -221,10 +228,11 @@ async def run_login(session_id: str) -> None:
             context={"session_id": session_id, "user_id": session.user_id},
         )
     finally:
-        if context is not None:
-            await context.close()
-        if browser is not None:
-            await browser.close()
+        if not settings.PLAYWRIGHT_CDP_ENDPOINT.strip():
+            if context is not None:
+                await context.close()
+            if browser is not None:
+                await browser.close()
         if playwright is not None:
             await playwright.stop()
         await engine.dispose()

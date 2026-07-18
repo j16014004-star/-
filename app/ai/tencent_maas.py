@@ -150,7 +150,7 @@ class TencentMaaSModelGateway:
     async def _post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         attempts = max(1, settings.AI_MAX_RETRIES + 1)
         last_error: Exception | None = None
-        url = f'{self.base_url}/{path.lstrip('/')}'
+        url = f'{self.base_url}/{path.lstrip("/")}'
         for attempt in range(attempts):
             try:
                 async with httpx.AsyncClient(timeout=self.timeout) as client:
