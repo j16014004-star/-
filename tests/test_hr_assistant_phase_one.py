@@ -4,6 +4,7 @@ from pydantic import ValidationError
 from app.ai.hr_application_agent import HrApplicationAgent
 from app.automations.job_58_apply import (
     classify_job_page,
+    find_58_chat_entry,
     is_direct_58_job_url,
     is_58_webim_url,
     job_titles_match,
@@ -56,6 +57,29 @@ def test_real_58_webim_url_is_recognized():
     assert is_58_webim_url("https://webim.58.com/indexNew?p=rb&_=123")
     assert not is_58_webim_url("https://xa.58.com/job/123456.shtml")
     assert not is_58_webim_url("https://example.com/webim")
+
+
+@pytest.mark.asyncio
+async def test_58_chat_entry_prefers_clickable_parent(monkeypatch):
+    clickable_parent = object()
+    seen = []
+
+    async def fake_selector(page, selector):
+        seen.append(selector)
+        return clickable_parent
+
+    async def text_lookup_must_not_run(page, label):
+        raise AssertionError("text child fallback must not run when .bangbangBtn exists")
+
+    monkeypatch.setattr(
+        "app.automations.job_58_apply.first_visible_selector", fake_selector
+    )
+    monkeypatch.setattr(
+        "app.automations.job_58_apply.first_visible_text", text_lookup_must_not_run
+    )
+
+    assert await find_58_chat_entry(object()) is clickable_parent
+    assert ".bangbangBtn" in seen[0]
 
 
 def test_optimized_resume_requires_saved_version_id():

@@ -302,19 +302,53 @@ async def open_58_webim_scope(page, entry):
     if webim is None:
         raise PlatformActionError("58微聊窗口加载失败，请人工接管")
 
+    # 58 now preloads WebIM on job pages. In that layout the first click may
+    # already activate the job conversation, so do not blindly click twice.
+    active_selectors = (
+        "li.im-session[class*='active']",
+        "li.im-session[class*='selected']",
+        "li.im-session[class*='current']",
+    )
+    for _ in range(10):
+        for selector in active_selectors:
+            if await webim.locator(selector).count():
+                return webim
+        await page.wait_for_timeout(300)
+
     await entry.click(timeout=3000)
     for _ in range(10):
-        active = webim.locator("li.im-session[class*='active']")
-        if await active.count():
-            return webim
+        for selector in active_selectors:
+            if await webim.locator(selector).count():
+                return webim
         await page.wait_for_timeout(300)
-    raise PlatformActionError("58未能激活当前岗位会话，已停止操作")
+    raise PlatformActionError(
+        "已打开58微聊列表，但当前岗位没有可核验的HR会话；"
+        "请先在58页面进入该岗位微聊后再同步"
+    )
+
+
+async def find_58_chat_entry(page):
+    """Prefer the real clickable chat control over its nested text span."""
+    entry = await first_visible_selector(
+        page,
+        ".bangbangBtn, a.bangbangBtn, button.bangbangBtn, "
+        "[data-action*='chat'], [data-click*='chat']",
+    )
+    if entry is not None:
+        return entry
+    for label in ("微聊", "在线聊", "聊一聊", "联系HR", "联系招聘者"):
+        locator = await first_visible_text(page, label)
+        if locator is not None:
+            return locator
+    return None
 
 
 async def _webim_scope_matches_job(scope, expected_title: str) -> bool:
     """Only reuse a WebIM shell when its active session can be tied to the job."""
     selectors = (
         "li.im-session[class*='active']",
+        "li.im-session[class*='selected']",
+        "li.im-session[class*='current']",
         ".im-chat-title",
         ".im-header",
         "[class*='session'][class*='active']",
@@ -373,14 +407,9 @@ async def open_verified_58_conversation(
         page_text=body,
     ):
         raise PlatformActionError("页面岗位与工作区岗位不一致")
-    for label in ("微聊", "在线聊", "聊一聊", "联系HR", "联系招聘者"):
-        locator = await first_visible_text(page, label)
-        if locator is None:
-            continue
-        try:
-            return await open_58_webim_scope(page, locator), True
-        except Exception:
-            continue
+    locator = await find_58_chat_entry(page)
+    if locator is not None:
+        return await open_58_webim_scope(page, locator), True
     raise PlatformActionError("页面未找到可核验的微聊入口，请人工接管")
 
 
@@ -406,7 +435,8 @@ async def _find_message_nodes(scope):
 
 async def _conversation_identity(scope) -> str:
     active = scope.locator(
-        "li.im-session[class*='active'], [class*='session'][class*='active']"
+        "li.im-session[class*='active'], li.im-session[class*='selected'], "
+        "li.im-session[class*='current'], [class*='session'][class*='active']"
     ).first
     if not await active.count():
         return ""
@@ -421,6 +451,8 @@ async def _conversation_identity(scope) -> str:
 async def _conversation_label(scope) -> str:
     for selector in (
         "li.im-session[class*='active']",
+        "li.im-session[class*='selected']",
+        "li.im-session[class*='current']",
         ".im-chat-title",
         "[class*='session'][class*='active']",
         "[class*='chat-title']",
