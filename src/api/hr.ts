@@ -40,7 +40,7 @@ export const hrApi = {
     return asApiPromise(request.post<ApiResponse<HrWorkspace>>('/hr/workspaces', data))
   },
 
-  getWorkspaces(params?: { status?: string }) {
+  getWorkspaces(params?: { status?: string; page?: number; page_size?: number }) {
     return asApiPromise(request.get<ApiResponse<HrWorkspaceList>>('/hr/workspaces', { params }))
   },
 

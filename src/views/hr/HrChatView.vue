@@ -496,7 +496,7 @@ async function loadCandidate() {
 
 async function loadWorkspaces() {
   try {
-    const response = await hrApi.getWorkspaces()
+    const response = await hrApi.getWorkspaces({ page: 1, page_size: 100 })
     workspaces.value = response.data.items || []
     const queryWorkspaceId = toPositiveNumber(route.query.workspace_id)
     const targetId = queryWorkspaceId || selectedWorkspaceId.value || workspaces.value[0]?.id

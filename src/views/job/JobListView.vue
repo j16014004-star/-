@@ -158,6 +158,16 @@
           show-icon
           class="mb-4"
         />
+        <el-button
+          v-if="flowStatus === 'waiting_login' && remoteBrowserUrl"
+          class="mb-4"
+          type="primary"
+          plain
+          :icon="TopRight"
+          @click="openRemoteBrowser"
+        >
+          打开或重新打开58登录窗口
+        </el-button>
         <div class="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <el-tag :type="statusTagType" effect="light">{{ statusTitle }}</el-tag>
@@ -527,6 +537,7 @@ const flowStatus = ref<FlowStatus>('idle')
 const statusMessage = ref('')
 const progress = ref(0)
 const loginSessionId = ref('')
+const remoteBrowserUrl = ref('')
 const taskId = ref('')
 const extractedSkills = ref<string[]>([])
 const searchKeywords = ref<string[]>([])
@@ -617,7 +628,7 @@ const showTaskStatus = computed(() => {
   return flowStatus.value !== 'idle' || Boolean(taskId.value || loginSessionId.value)
 })
 
-const hasCrawlDiagnostics = computed(() => Object.values(crawlDiagnostics).some((value) => typeof value === 'number' && value > 0))
+const hasCrawlDiagnostics = computed(() => Object.keys(crawlDiagnostics).length > 0)
 
 const sortedJobs = computed(() => {
   return [...jobs.value].sort((a, b) => {
@@ -725,6 +736,7 @@ async function restoreCurrentTask() {
     const task = response.data.task
     if (!task) return
     applyTaskState(task)
+    loginSessionId.value = task.login_session_id || loginSessionId.value
     selectedTargetRole.value = task.target_role || selectedTargetRole.value
     selectedCity.value = task.target_city || selectedCity.value
     if (task.status === 'need_login') {
@@ -738,7 +750,22 @@ async function restoreCurrentTask() {
         statusMessage.value = `岗位结果已超过${RECOMMENDATION_STALE_MINUTES}分钟，建议重新抓取最新岗位`
         ElMessage.warning(statusMessage.value)
       }
-    } else if (['pending', 'crawling', 'matching'].includes(task.status)) {
+    } else if (task.status === 'pending' && loginSessionId.value) {
+      const loginResponse = await jobApi.getPlatformLoginStatus(loginSessionId.value)
+      remoteBrowserUrl.value = loginResponse.data.browser_url || ''
+      if (loginResponse.data.status === 'waiting_login') {
+        flowStatus.value = 'waiting_login'
+        statusMessage.value = '请在远程受控浏览器中完成58同城登录'
+        startLoginPolling()
+        return
+      }
+      if (loginResponse.data.status === 'expired' || loginResponse.data.status === 'failed') {
+        flowStatus.value = loginResponse.data.status === 'expired' ? 'need_login' : 'failed'
+        statusMessage.value = loginResponse.data.error_message || '58同城登录状态不可用，请重新登录'
+        return
+      }
+      startTaskPolling()
+    } else if (['crawling', 'matching'].includes(task.status)) {
       startTaskPolling()
     }
   } catch (error: unknown) {
@@ -884,9 +911,8 @@ async function handleStartFlow() {
     const session = response.data
     loginSessionId.value = session.login_session_id
     taskId.value = session.recommend_task_id || ''
-    if (session.status === 'waiting_login' && session.browser_url) {
-      window.open(session.browser_url, '_blank', 'noopener,noreferrer')
-    }
+    remoteBrowserUrl.value = session.browser_url || ''
+    if (session.status === 'waiting_login' && remoteBrowserUrl.value) openRemoteBrowser()
     statusMessage.value = session.status === 'logged_in'
       ? '已检测到登录态，正在生成岗位推荐'
       : session.login_mode === 'remote_browser'
@@ -939,7 +965,12 @@ async function pollLoginStatus() {
     const response = await jobApi.getPlatformLoginStatus(loginSessionId.value)
     const loginStatus = response.data
     taskId.value = loginStatus.recommend_task_id || taskId.value
-    statusMessage.value = loginStatus.error_message || '等待用户在后端弹出的浏览器中完成登录'
+    remoteBrowserUrl.value = loginStatus.browser_url || remoteBrowserUrl.value
+    statusMessage.value = loginStatus.error_message || (
+      loginStatus.login_mode === 'remote_browser'
+        ? '等待用户在远程受控浏览器中完成登录'
+        : '等待用户在后端受控浏览器中完成登录'
+    )
 
     if (loginStatus.status === 'logged_in') {
       clearLoginPolling()
@@ -1068,6 +1099,7 @@ function resetRecommendationState() {
   clearLoginPolling()
   clearTaskPolling()
   loginSessionId.value = ''
+  remoteBrowserUrl.value = ''
   taskId.value = ''
   extractedSkills.value = []
   searchKeywords.value = []
@@ -1084,6 +1116,19 @@ function resetRecommendationState() {
   detailVisible.value = false
   flowStatus.value = 'idle'
   statusMessage.value = ''
+}
+
+function openRemoteBrowser() {
+  if (!remoteBrowserUrl.value) {
+    ElMessage.error('服务器尚未配置远程登录窗口，请联系管理员检查浏览器服务')
+    return
+  }
+  const opened = window.open(remoteBrowserUrl.value, '_blank')
+  if (!opened) {
+    ElMessage.error('浏览器阻止了登录窗口，请允许本站弹出窗口后重试')
+    return
+  }
+  opened.opener = null
 }
 
 function handleVisibilityChange() {
@@ -1309,6 +1354,7 @@ function getFailureMessage(code?: string | null) {
     parse_failed: '招聘平台页面结构可能发生变化，岗位解析失败，请稍后重试',
     crawl_failed: '岗位采集遇到网络、浏览器或源站异常，请重新开始',
     network_access_denied: '运行环境无法访问58同城，请放行Python/Chromium网络后重试',
+    worker_timeout: '上一次岗位抓取任务执行超时，请重新抓取最新岗位',
   }
   return messages[code] || `推荐任务失败（${code}）`
 }

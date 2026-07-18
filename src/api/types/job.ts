@@ -26,7 +26,7 @@ export interface JobApplication {
   resume_source?: JobResumeSource
   resume_optimization_id?: number | null
   status: 'pending' | 'submitted' | 'viewed' | 'interviewing' | 'rejected' | 'accepted'
-  apply_type: 'manual' | 'auto'
+  apply_type: 'manual' | 'auto' | 'agent'
   applied_at: string
   agent_task_id?: number | null
 }
@@ -96,7 +96,6 @@ export type JobRecommendFailureCode =
   | 'parse_failed'
   | 'crawl_failed'
   | 'network_access_denied'
-  | 'network_access_denied'
   | string
 
 export interface JobCrawlDiagnostics {
@@ -107,11 +106,14 @@ export interface JobCrawlDiagnostics {
   invalid_items?: number
   duplicate_items?: number
   no_result_queries?: number
-  [key: string]: number | undefined
+  knowledge_retrieval?: Record<string, unknown>
+  freshness?: Record<string, unknown>
+  [key: string]: unknown
 }
 
 export interface JobRecommendTask {
   task_id: string
+  login_session_id?: string | null
   status: JobRecommendTaskStatus
   progress?: number
   source: string
