@@ -345,6 +345,20 @@ def test_saved_serializer_always_returns_full_original_content():
     assert result['original'] == '完整原始简历\n第二行'
 
 
+def test_ai_output_contract_does_not_require_original_content():
+    from app.schemas.resume_optimization import ResumeOptimizationAIOutput
+
+    result = ResumeOptimizationAIOutput.model_validate({
+        'optimization_summary': '优化了表达与结构',
+        'optimized_content': '完整的优化后简历',
+        'score_improvement': 80,
+        'change_items': [],
+        'confirmation_questions': [],
+    })
+    assert result.optimized_content == '完整的优化后简历'
+    assert 'original_content' not in ResumeOptimizationAIOutput.model_fields
+
+
 @pytest.mark.asyncio
 async def test_delete_saved_optimization_is_idempotent(monkeypatch):
     from types import SimpleNamespace
