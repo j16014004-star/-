@@ -24,6 +24,12 @@
             <img src="/hakimi-logo.png" alt="" />
           </div>
           <span class="online-status"><i></i> AI 服务在线</span>
+          <div class="feature-tags">
+            <span>筛选岗位</span>
+            <span>自动投递</span>
+            <span>联系 HR</span>
+            <span>面试邀约</span>
+          </div>
         </aside>
 
         <div class="form-panel">
@@ -88,7 +94,7 @@
       </div>
 
       <footer class="auth-footer">
-        <span>简历优化</span><i></i><span>岗位推荐</span><i></i><span>AI 面试</span><i></i><span>职业规划</span>
+        <span>智能筛选岗位</span><i></i><span>自动投递简历</span><i></i><span>AI 联系 HR</span><i></i><span>跟进面试邀约</span>
       </footer>
     </section>
     <p class="copyright">© 2026 哈基米AI · AI Career Agent</p>
@@ -258,6 +264,8 @@ const cancelTwoFactor = () => {
 .avatar-frame img { width: 100%; height: 100%; border-radius: 15px; object-fit: cover; }
 .online-status { margin-top: 14px; color: #64748b; font-size: 12px; }
 .online-status i, .secure-tip i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px #dcfce7; }
+.feature-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin-top: 12px; }
+.feature-tags span { padding: 3px 7px; color: #1477b8; font-size: 11px; border: 1px solid #bae6fd; border-radius: 5px; background: #f0f9ff; }
 .form-panel { min-width: 0; }
 .form-options { display: flex; justify-content: space-between; align-items: center; margin: -2px 0 19px; font-size: 13px; }
 .secure-tip { color: #64748b; }

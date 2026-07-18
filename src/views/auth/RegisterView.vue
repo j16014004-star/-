@@ -21,8 +21,8 @@
       <div class="auth-content register-content">
         <aside class="avatar-panel" aria-hidden="true">
           <div class="avatar-frame"><img src="/hakimi-logo.png" alt="" /></div>
-          <p>一个账号，连接全部求职服务</p>
-          <div class="feature-tags"><span>简历</span><span>岗位</span><span>面试</span><span>规划</span></div>
+          <p>一个账号，连接自动化求职全流程</p>
+          <div class="feature-tags"><span>筛选岗位</span><span>自动投递</span><span>联系 HR</span><span>面试邀约</span></div>
         </aside>
 
         <div class="form-panel">
@@ -54,7 +54,7 @@
         </div>
       </div>
 
-      <footer class="auth-footer">注册后即可使用简历优化、岗位推荐、AI 面试和职业规划服务</footer>
+      <footer class="auth-footer">智能筛选岗位 · 自动投递简历 · AI 联系 HR · 跟进面试邀约</footer>
     </section>
     <p class="copyright">© 2026 哈基米AI · AI Career Agent</p>
   </main>
