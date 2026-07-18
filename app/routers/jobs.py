@@ -15,7 +15,7 @@ from app.services.job_service import (
 router = APIRouter(prefix="/api/jobs", tags=["岗位"])
 
 
-def job_to_dict(job, detail: bool = False) -> dict:
+def job_to_dict(job, detail: bool = False, recommendation=None) -> dict:
     """序列化岗位对象"""
     d = {
         "id": job.id,
@@ -29,8 +29,8 @@ def job_to_dict(job, detail: bool = False) -> dict:
         "education_required": job.education_required,
         "skills": job.skills or [],
         "description": job.description if detail else None,
-        "match_score": job.match_score,
-        "match_reasons": job.match_reasons,
+        "match_score": recommendation.match_score if recommendation else job.match_score,
+        "match_reasons": recommendation.match_reasons if recommendation else job.match_reasons,
         "source": job.source,
         "source_name": job.source_name,
         "source_url": job.source_url,
@@ -57,7 +57,7 @@ async def list_jobs(
 ):
     """获取推荐岗位列表"""
     result = await get_recommendations(
-        db=db, page=page, page_size=page_size,
+        db=db, user_id=current_user.id, page=page, page_size=page_size,
         keyword=keyword, city=city,
         salary_min=salary_min, salary_max=salary_max,
         source=source,
@@ -66,7 +66,10 @@ async def list_jobs(
         "code": 200,
         "message": "success",
         "data": {
-            "items": [job_to_dict(j) for j in result["items"]],
+            "items": [
+                job_to_dict(job, recommendation=recommendation)
+                for recommendation, job in result["items"]
+            ],
             "total": result["total"],
             "page": result["page"],
             "page_size": result["page_size"],

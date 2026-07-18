@@ -5,15 +5,14 @@ import re
 
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import func, or_, select
 
 from app.crud.job import (
     create_application,
     get_job_by_id,
-    get_jobs,
 )
 from app.crud.resume import get_resume_by_id
-from app.models.job import Job
+from app.models.job import Job, JobRecommendResult, JobRecommendTask
 
 
 # 技能关键词表（用于从纯文本中提取）
@@ -47,6 +46,7 @@ def _extract_skills_from_text(text: str) -> list[str]:
 
 async def get_recommendations(
     db: AsyncSession,
+    user_id: int,
     page: int = 1,
     page_size: int = 10,
     keyword: str | None = None,
@@ -55,19 +55,54 @@ async def get_recommendations(
     salary_max: int | None = None,
     source: str | None = None,
 ) -> dict:
-    """获取岗位推荐列表"""
-    jobs, total = await get_jobs(
-        db=db,
-        page=page,
-        page_size=page_size,
-        keyword=keyword,
-        city=city,
-        salary_min=salary_min,
-        salary_max=salary_max,
-        source=source,
+    """Return only the current user's latest recommendation results."""
+    task_query = select(JobRecommendTask).where(JobRecommendTask.user_id == user_id)
+    if source:
+        task_query = task_query.where(JobRecommendTask.source == source)
+    task = (
+        await db.execute(
+            task_query.order_by(JobRecommendTask.created_at.desc()).limit(1)
+        )
+    ).scalar_one_or_none()
+
+    if task is None or task.status not in ("success", "no_results"):
+        return {"items": [], "total": 0, "page": page, "page_size": page_size}
+
+    query = (
+        select(JobRecommendResult, Job)
+        .join(Job, Job.id == JobRecommendResult.job_id)
+        .where(
+            JobRecommendResult.task_id == task.id,
+            JobRecommendResult.user_id == user_id,
+            Job.is_active.is_(True),
+        )
     )
+    if keyword:
+        pattern = f"%{keyword}%"
+        query = query.where(
+            or_(Job.title.ilike(pattern), Job.company.ilike(pattern))
+        )
+    if city:
+        query = query.where(Job.city == city)
+    if salary_min is not None:
+        query = query.where(Job.salary_max >= salary_min)
+    if salary_max is not None:
+        query = query.where(Job.salary_min <= salary_max)
+    if source:
+        query = query.where(Job.source == source)
+
+    total = (await db.execute(select(func.count()).select_from(query.subquery()))).scalar() or 0
+    rows = list((await db.execute(
+        query.order_by(
+            JobRecommendResult.matched_skill_count.desc(),
+            JobRecommendResult.match_score.desc(),
+            Job.crawl_time.desc(),
+        )
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    )).all())
     return {
-        "items": jobs,
+        "items": rows,
         "total": total,
         "page": page,
         "page_size": page_size,
