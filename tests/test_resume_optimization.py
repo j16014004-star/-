@@ -187,6 +187,55 @@ def test_fact_guard_does_not_flag_date_separator_changes():
     assert result.change_items[0].requires_confirmation is False
 
 
+def test_fact_guard_accepts_harmless_punctuation_and_spacing_changes():
+    output = ResumeOptimizationAIOutput(
+        optimization_summary='优化项目描述',
+        optimized_content='使用 FastAPI、MySQL 完成接口开发。',
+        score_improvement=12,
+        change_items=[
+            ResumeChangeItem(
+                section='项目经历',
+                original='使用 FastAPI / MySQL，完成接口开发',
+                optimized='使用 FastAPI、MySQL 完成接口开发。',
+                reason='统一表达格式',
+                evidence='来自项目经历原文',
+                requires_confirmation=False,
+            )
+        ],
+        confirmation_questions=[],
+    )
+
+    result = validate_resume_facts('使用FastAPI、MySQL完成接口开发。', output)
+
+    assert len(result.change_items) == 1
+    assert result.confirmation_questions == []
+
+
+def test_fact_guard_drops_only_unverifiable_change_item_instead_of_failing_task():
+    output = ResumeOptimizationAIOutput(
+        optimization_summary='优化项目描述',
+        optimized_content='使用 FastAPI 完成业务接口开发。',
+        score_improvement=10,
+        change_items=[
+            ResumeChangeItem(
+                section='项目经历',
+                original='原简历中不存在的描述',
+                optimized='使用 FastAPI 完成业务接口开发。',
+                reason='优化表达',
+                evidence='模型生成的修改说明',
+                requires_confirmation=False,
+            )
+        ],
+        confirmation_questions=[],
+    )
+
+    result = validate_resume_facts('使用 FastAPI 开发接口。', output)
+
+    assert result.optimized_content == '使用 FastAPI 完成业务接口开发。'
+    assert result.change_items == []
+    assert result.confirmation_questions == ['请核对优化后的“项目经历”内容是否与原简历事实一致。']
+
+
 def test_parse_json_object_accepts_wrapped_json():
     payload = {'optimization_summary': 'ok', 'score_improvement': 10}
     raw = f'下面是优化结果：\n{json.dumps(payload, ensure_ascii=False)}\n请查收。'

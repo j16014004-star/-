@@ -181,7 +181,7 @@ def validate_resume_facts(
     original_resume: str,
     result: ResumeOptimizationAIOutput,
 ) -> ResumeOptimizationAIOutput:
-    normalized_source = _compact(original_resume)
+    normalized_source = _normalize_for_source_match(original_resume)
     source_numbers = set(_numbers(original_resume))
     optimized_numbers = set(_numbers(result.optimized_content))
     unexpected_numbers = optimized_numbers - source_numbers
@@ -191,9 +191,14 @@ def validate_resume_facts(
 
     validated_items = []
     for item in result.change_items:
-        normalized_original = _compact(item.original)
+        normalized_original = _normalize_for_source_match(item.original)
         if not normalized_original or normalized_original not in normalized_source:
-            raise ValueError('修改项原文无法在原简历中找到')
+            # The model may normalize punctuation, spaces, or quote a shortened
+            # description.  A bad change annotation must not discard an otherwise
+            # usable optimized resume.  Keep the generated document, omit only the
+            # unverifiable annotation, and ask the user to review that section.
+            questions.append(f'请核对优化后的“{item.section}”内容是否与原简历事实一致。')
+            continue
         new_numbers = set(_numbers(item.optimized)) - source_numbers
         if new_numbers:
             item.requires_confirmation = True
@@ -209,6 +214,12 @@ def validate_resume_facts(
 
 def _compact(text: str) -> str:
     return re.sub(r'\s+', '', text or '').lower()
+
+
+def _normalize_for_source_match(text: str) -> str:
+    """Normalize harmless formatting differences before source verification."""
+    compact = _compact(text)
+    return re.sub(r'[\W_]+', '', compact, flags=re.UNICODE)
 
 
 def _numbers(text: str) -> list[str]:
