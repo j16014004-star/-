@@ -34,6 +34,18 @@
 
     <el-row :gutter="20">
       <el-col :xs="24" :lg="12" class="mb-6">
+        <el-card class="h-full border-0 optimized-card" shadow="never">
+          <template #header>
+            <div class="flex items-center gap-2">
+              <el-tag type="success" effect="plain">优化简历</el-tag>
+              <span class="text-sm font-medium text-green-600">已保存版本 · 优化后</span>
+            </div>
+          </template>
+          <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ optimizedText }}</pre>
+        </el-card>
+      </el-col>
+
+      <el-col :xs="24" :lg="12" class="mb-6">
         <el-card class="h-full border-0" shadow="never">
           <template #header>
             <div class="flex items-center gap-2">
@@ -42,18 +54,6 @@
             </div>
           </template>
           <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ originalText }}</pre>
-        </el-card>
-      </el-col>
-
-      <el-col :xs="24" :lg="12" class="mb-6">
-        <el-card class="h-full border-0 optimized-card" shadow="never">
-          <template #header>
-            <div class="flex items-center gap-2">
-              <el-tag type="success" effect="plain">优化简历</el-tag>
-              <span class="text-sm font-medium text-green-600">已保存版本</span>
-            </div>
-          </template>
-          <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ optimizedText }}</pre>
         </el-card>
       </el-col>
     </el-row>

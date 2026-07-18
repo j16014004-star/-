@@ -125,17 +125,6 @@
       <!-- Side-by-side Comparison -->
       <el-row :gutter="20" class="mb-6">
         <el-col :span="12">
-          <el-card class="border-0 h-full">
-            <template #header>
-              <div class="flex items-center gap-2">
-                <el-tag type="info" effect="plain">原始简历</el-tag>
-                <span class="text-gray-500 text-sm">优化前</span>
-              </div>
-            </template>
-            <div class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{{ originalContent }}</div>
-          </el-card>
-        </el-col>
-        <el-col :span="12">
           <el-card class="border-0 h-full" :class="{ 'ring-2 ring-green-200': showResult }">
             <template #header>
               <div class="flex items-center gap-2">
@@ -144,6 +133,17 @@
               </div>
             </template>
             <div class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{{ optimizedContent }}</div>
+          </el-card>
+        </el-col>
+        <el-col :span="12">
+          <el-card class="border-0 h-full">
+            <template #header>
+              <div class="flex items-center gap-2">
+                <el-tag type="info" effect="plain">原始简历</el-tag>
+                <span class="text-gray-500 text-sm">优化前</span>
+              </div>
+            </template>
+            <div class="whitespace-pre-wrap text-sm text-gray-700 leading-relaxed">{{ originalContent }}</div>
           </el-card>
         </el-col>
       </el-row>
@@ -373,10 +373,6 @@
       />
       <el-row :gutter="16" class="mb-4">
         <el-col :span="12">
-          <div class="mb-2 text-sm font-medium text-gray-700">原始简历</div>
-          <pre class="save-preview-box whitespace-pre-wrap">{{ originalContent }}</pre>
-        </el-col>
-        <el-col :span="12">
           <div class="mb-2 text-sm font-medium text-gray-700">最终优化内容（可编辑）</div>
           <el-input
             v-model="finalEditableContent"
@@ -385,6 +381,10 @@
             maxlength="50000"
             show-word-limit
           />
+        </el-col>
+        <el-col :span="12">
+          <div class="mb-2 text-sm font-medium text-gray-700">原始简历（优化前）</div>
+          <pre class="save-preview-box whitespace-pre-wrap">{{ originalContent }}</pre>
         </el-col>
       </el-row>
       <div v-if="confirmationActions.length" class="mb-4">
