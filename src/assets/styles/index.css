@@ -485,6 +485,83 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   border-color: #cedde8 !important;
 }
 
+/* Keep legacy utility text readable on the light-blue classic workspace. */
+.workspace-content {
+  --workspace-text-strong: #173f5b;
+  --workspace-text: #294e68;
+  --workspace-text-secondary: #49677c;
+  --workspace-text-muted: #5f7789;
+}
+
+.workspace-content .text-gray-900,
+.workspace-content .text-gray-800,
+.workspace-content .text-slate-900,
+.workspace-content .text-slate-800 {
+  color: var(--workspace-text-strong) !important;
+}
+
+.workspace-content .text-gray-700,
+.workspace-content .text-gray-600,
+.workspace-content .text-slate-700,
+.workspace-content .text-slate-600 {
+  color: var(--workspace-text) !important;
+}
+
+.workspace-content .text-gray-500,
+.workspace-content .text-slate-500 {
+  color: var(--workspace-text-secondary) !important;
+}
+
+.workspace-content .text-gray-400,
+.workspace-content .text-gray-300,
+.workspace-content .text-slate-400,
+.workspace-content .text-slate-300 {
+  color: var(--workspace-text-muted) !important;
+}
+
+.workspace-content .el-form-item__label,
+.workspace-content .el-checkbox__label,
+.workspace-content .el-radio__label,
+.workspace-content .el-descriptions__label,
+.workspace-content .el-empty__description p,
+.workspace-content .el-upload__tip {
+  color: var(--workspace-text-secondary) !important;
+}
+
+.workspace-content .el-input__inner,
+.workspace-content .el-select__selected-item,
+.workspace-content .el-textarea__inner {
+  color: var(--workspace-text-strong) !important;
+  -webkit-text-fill-color: var(--workspace-text-strong) !important;
+}
+
+.workspace-content .el-input__inner::placeholder,
+.workspace-content .el-select__placeholder,
+.workspace-content .el-textarea__inner::placeholder {
+  color: #6b8293 !important;
+  -webkit-text-fill-color: #6b8293 !important;
+  opacity: 1;
+}
+
+.workspace-content .el-input.is-disabled .el-input__inner,
+.workspace-content .el-textarea.is-disabled .el-textarea__inner {
+  color: #607789 !important;
+  -webkit-text-fill-color: #607789 !important;
+}
+
+/* Blue title/hero areas need light text instead of the workspace gray scale. */
+.workspace-content .bg-gradient-to-r .text-gray-300,
+.workspace-content .bg-gradient-to-r .text-gray-400,
+.workspace-content .bg-gradient-to-r .text-gray-500,
+.workspace-content .bg-gradient-to-br .text-gray-300,
+.workspace-content .bg-gradient-to-br .text-gray-400,
+.workspace-content .bg-gradient-to-br .text-gray-500,
+.workspace-content .progress-hero .text-gray-300,
+.workspace-content .progress-hero .text-gray-400,
+.workspace-content .progress-hero .text-gray-500 {
+  color: #e8f7ff !important;
+}
+
 .el-dialog {
   overflow: hidden;
   border: 1px solid #7faecb;
@@ -533,6 +610,20 @@ html.dark .workspace-content .el-tabs__header {
   color: #d5e5f2 !important;
   border-color: #334155 !important;
   background: #263449 !important;
+}
+
+html.dark .workspace-content {
+  --workspace-text-strong: #f1f5f9;
+  --workspace-text: #dbe5ee;
+  --workspace-text-secondary: #c3d0dc;
+  --workspace-text-muted: #aebdca;
+}
+
+html.dark .workspace-content .el-input__inner::placeholder,
+html.dark .workspace-content .el-select__placeholder,
+html.dark .workspace-content .el-textarea__inner::placeholder {
+  color: #9fb0bf !important;
+  -webkit-text-fill-color: #9fb0bf !important;
 }
 
 @media (max-width: 760px) {
