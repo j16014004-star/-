@@ -99,6 +99,7 @@ export interface ResumeOptimizeResult {
   saved_at?: string | null
   is_saved?: boolean
   optimization_summary?: string
+  original_content?: string
   original?: string
   optimized?: string
   optimized_content?: string

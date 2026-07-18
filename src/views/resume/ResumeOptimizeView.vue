@@ -571,7 +571,11 @@ const handleOptimize = async () => {
 }
 
 const applyOptimizationResult = (data: ResumeOptimizeResult) => {
-  originalContent.value = data.original || originalContent.value
+  // “优化前”始终以原始简历详情接口为准。结果接口中的字段仅用于
+  // 兼容直接打开结果、原始详情尚未加载完成等情况，不能反向覆盖原文。
+  if (!originalContent.value.trim()) {
+    originalContent.value = data.original_content || data.original || ''
+  }
   optimizedContent.value = data.optimized_content || data.optimized || optimizedContent.value
   changes.value = data.change_items || data.changes || changes.value
   scoreImprovement.value = data.score_improvement ?? scoreImprovement.value

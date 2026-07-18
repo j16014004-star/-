@@ -41,7 +41,7 @@
               <span class="text-sm text-gray-500">优化前</span>
             </div>
           </template>
-          <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ detail.original || '暂无原始内容' }}</pre>
+          <pre class="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">{{ originalText }}</pre>
         </el-card>
       </el-col>
 
@@ -130,8 +130,15 @@ const isLoading = ref(false)
 const downloading = ref(false)
 const deleting = ref(false)
 const detail = ref<ResumeOptimizeResult>({ change_items: [], confirmation_questions: [] })
+const authoritativeOriginal = ref('')
 
 const savedAt = computed(() => detail.value.saved_at?.split('T')[0] || detail.value.created_at?.split('T')[0] || '')
+const originalText = computed(() => (
+  authoritativeOriginal.value
+  || detail.value.original_content
+  || detail.value.original
+  || '暂无原始内容'
+))
 const optimizedText = computed(() => detail.value.optimized_content || detail.value.optimized || '暂无优化内容')
 const changes = computed<OptimizeChange[]>(() => detail.value.change_items || detail.value.changes || [])
 const confirmationActions = computed(() => detail.value.confirmation_actions || [])
@@ -186,6 +193,19 @@ const loadDetail = async () => {
   try {
     const response = await resumeApi.getSavedOptimizationDetail(savedOptimizationId)
     detail.value = response.data
+    if (response.data.resume_id) {
+      try {
+        const originalResponse = await resumeApi.getDetail(response.data.resume_id)
+        authoritativeOriginal.value = (
+          originalResponse.data.extracted_text
+          || originalResponse.data.content?.raw_text
+          || ''
+        )
+      } catch {
+        // 历史原简历不可用时，仍可使用优化版本中保存的原文快照。
+        authoritativeOriginal.value = ''
+      }
+    }
   } catch (error: unknown) {
     ElMessage.error(getErrorMessage(error, '加载优化简历失败'))
   } finally {
