@@ -869,7 +869,13 @@ async def delete_saved_resume_optimization(
         user_id=current_user.id,
     )
     if version is None:
-        raise HTTPException(status_code=404, detail='优化简历不存在或无权限访问')
+        # DELETE 保持幂等：页面缓存、重复点击或原始简历级联删除后，
+        # 客户端仍应当能够安全地完成本地清理与页面跳转。
+        return {
+            'code': 200,
+            'message': '优化简历已删除或不存在',
+            'data': None,
+        }
     await db.delete(version)
     await db.commit()
     return {

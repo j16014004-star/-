@@ -345,6 +345,32 @@ def test_saved_serializer_always_returns_full_original_content():
     assert result['original'] == '完整原始简历\n第二行'
 
 
+@pytest.mark.asyncio
+async def test_delete_saved_optimization_is_idempotent(monkeypatch):
+    from types import SimpleNamespace
+
+    from app.routers import resume_optimizations
+
+    async def get_missing_version(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(
+        resume_optimizations,
+        'get_owned_saved_optimization_version',
+        get_missing_version,
+    )
+    result = await resume_optimizations.delete_saved_resume_optimization(
+        saved_optimization_id=999,
+        current_user=SimpleNamespace(id=1),
+        db=SimpleNamespace(),
+    )
+    assert result == {
+        'code': 200,
+        'message': '优化简历已删除或不存在',
+        'data': None,
+    }
+
+
 def test_confirmed_answer_fallback_always_adds_user_content():
     from app.routers.resume_optimizations import build_confirmed_answer_fallback
 
