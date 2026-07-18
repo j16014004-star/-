@@ -1,127 +1,69 @@
 <template>
-  <div class="register-page min-h-screen flex">
-    <!-- Left decorative panel -->
-    <div class="register-left hidden lg:flex lg:w-1/2 relative overflow-hidden items-center justify-center">
-      <div class="absolute inset-0 bg-gradient-to-br from-emerald-600 via-teal-700 to-cyan-800"></div>
-      <div class="absolute inset-0 opacity-10">
-        <div class="absolute top-10 right-10 w-72 h-72 bg-white rounded-full blur-3xl"></div>
-        <div class="absolute bottom-20 left-20 w-96 h-96 bg-emerald-300 rounded-full blur-3xl"></div>
-      </div>
-      <div class="relative z-10 text-center px-12">
-        <img class="brand-hero-logo mx-auto mb-6" src="/hakimi-logo.png" alt="哈基米AI" />
-        <h1 class="text-4xl font-bold text-white mb-4">哈基米AI</h1>
-        <p class="text-xl text-emerald-200 mb-2">全自动找工作一站式自动化服务</p>
-        <p class="text-sm text-emerald-100 mb-8">做简历、找岗位、练面试、定规划，一套流程帮你跑起来</p>
-        <div class="grid grid-cols-2 gap-4 max-w-md mx-auto">
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-            <div class="text-2xl mb-1">&#x1F4C4;</div>
-            <div class="text-white font-medium">简历分析</div>
-          </div>
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-            <div class="text-2xl mb-1">&#x1F3AF;</div>
-            <div class="text-white font-medium">岗位匹配</div>
-          </div>
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-            <div class="text-2xl mb-1">&#x1F4AC;</div>
-            <div class="text-white font-medium">面试训练</div>
-          </div>
-          <div class="bg-white/10 backdrop-blur-sm rounded-xl p-4 text-center">
-            <div class="text-2xl mb-1">&#x1F9D1;&#x200D;&#x1F4BB;</div>
-            <div class="text-white font-medium">职业规划</div>
+  <main class="auth-page">
+    <section class="auth-window" aria-labelledby="register-title">
+      <header class="auth-banner">
+        <div class="banner-orb orb-one"></div>
+        <div class="banner-orb orb-two"></div>
+        <div class="brand-line">
+          <img src="/hakimi-logo.png" alt="哈基米AI" class="brand-mark" />
+          <div>
+            <p class="brand-name">哈基米 AI 求职助手</p>
+            <p class="brand-slogan">创建你的智能求职工作台</p>
           </div>
         </div>
-      </div>
-    </div>
-
-    <!-- Right register form panel -->
-    <div class="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
-      <div class="w-full max-w-md">
-        <div class="text-center mb-8 lg:hidden">
-          <img class="brand-mobile-logo mx-auto mb-3" src="/hakimi-logo.png" alt="哈基米AI" />
-          <h1 class="text-2xl font-bold text-gray-800">哈基米AI</h1>
-          <p class="text-gray-500">创建您的账号</p>
+        <div class="banner-copy">
+          <span class="banner-kicker">JOIN AI CAREER AGENT</span>
+          <h1 id="register-title">注册新账号</h1>
+          <p>填写基础信息，即刻开始你的 AI 求职旅程</p>
         </div>
+      </header>
 
-        <el-card class="w-full shadow-xl border-0" body-style="padding: 40px">
-          <h2 class="text-2xl font-bold text-gray-800 mb-2">创建账号</h2>
-          <p class="text-gray-500 mb-8">填写以下信息完成注册</p>
+      <div class="auth-content register-content">
+        <aside class="avatar-panel" aria-hidden="true">
+          <div class="avatar-frame"><img src="/hakimi-logo.png" alt="" /></div>
+          <p>一个账号，连接全部求职服务</p>
+          <div class="feature-tags"><span>简历</span><span>岗位</span><span>面试</span><span>规划</span></div>
+        </aside>
 
-          <el-form
-            ref="formRef"
-            :model="form"
-            :rules="rules"
-            size="large"
-            label-position="top"
-          >
-            <el-form-item label="用户名" prop="username">
-              <el-input
-                v-model="form.username"
-                placeholder="请输入用户名"
-                :prefix-icon="User"
-              />
-            </el-form-item>
+        <div class="form-panel">
+          <el-form ref="formRef" :model="form" :rules="rules" size="large" label-position="top" @keyup.enter="handleRegister">
+            <div class="field-grid">
+              <el-form-item label="用户名" prop="username">
+                <el-input v-model="form.username" placeholder="2～20 个字符" :prefix-icon="User" autocomplete="username" />
+              </el-form-item>
+              <el-form-item label="邮箱" prop="email">
+                <el-input v-model="form.email" placeholder="请输入邮箱地址" :prefix-icon="Message" autocomplete="email" />
+              </el-form-item>
+              <el-form-item label="密码" prop="password">
+                <el-input v-model="form.password" type="password" placeholder="至少 6 个字符" :prefix-icon="Lock" autocomplete="new-password" show-password />
+              </el-form-item>
+              <el-form-item label="确认密码" prop="confirmPassword">
+                <el-input v-model="form.confirmPassword" type="password" placeholder="再次输入密码" :prefix-icon="Lock" autocomplete="new-password" show-password />
+              </el-form-item>
+            </div>
 
-            <el-form-item label="邮箱" prop="email">
-              <el-input
-                v-model="form.email"
-                placeholder="请输入邮箱地址"
-                :prefix-icon="Message"
-              />
-            </el-form-item>
+            <div class="form-options">
+              <span class="secure-tip"><i></i> 信息将被安全加密</span>
+              <router-link to="/login">已有账号？去登录</router-link>
+            </div>
 
-            <el-form-item label="密码" prop="password">
-              <el-input
-                v-model="form.password"
-                type="password"
-                placeholder="请输入密码"
-                :prefix-icon="Lock"
-                show-password
-              />
-            </el-form-item>
-
-            <el-form-item label="确认密码" prop="confirmPassword">
-              <el-input
-                v-model="form.confirmPassword"
-                type="password"
-                placeholder="请再次输入密码"
-                :prefix-icon="Lock"
-                show-password
-              />
-            </el-form-item>
-
-            <el-form-item>
-              <el-button
-                type="primary"
-                size="large"
-                class="w-full"
-                :loading="loading"
-                @click="handleRegister"
-              >
-                {{ loading ? '注册中...' : '注册' }}
-              </el-button>
-            </el-form-item>
+            <el-button type="primary" class="submit-button" :loading="loading" @click="handleRegister">
+              {{ loading ? '注册中...' : '注 册' }}
+            </el-button>
           </el-form>
-
-          <div class="text-center mt-6">
-            <span class="text-gray-500">已有账号？</span>
-            <router-link to="/login" class="text-blue-600 hover:text-blue-700 font-medium ml-1">
-              立即登录
-            </router-link>
-          </div>
-        </el-card>
-
-        <p class="text-center text-gray-400 text-sm mt-8">
-          &copy; 2026 哈基米AI. All rights reserved.
-        </p>
+        </div>
       </div>
-    </div>
-  </div>
+
+      <footer class="auth-footer">注册后即可使用简历优化、岗位推荐、AI 面试和职业规划服务</footer>
+    </section>
+    <p class="copyright">© 2026 哈基米AI · AI Career Agent</p>
+  </main>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { User, Message, Lock } from '@element-plus/icons-vue'
+import { Lock, Message, User } from '@element-plus/icons-vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import { ElMessage } from 'element-plus'
 import { authApi } from '@/api/auth'
@@ -130,63 +72,41 @@ const router = useRouter()
 const formRef = ref<FormInstance>()
 const loading = ref(false)
 
-const form = reactive({
-  username: '',
-  email: '',
-  password: '',
-  confirmPassword: ''
-})
+const form = reactive({ username: '', email: '', password: '', confirmPassword: '' })
 
 const validatePass = (_rule: any, value: string, callback: any) => {
-  if (value === '') {
-    callback(new Error('请再次输入密码'))
-  } else if (value !== form.password) {
-    callback(new Error('两次输入的密码不一致'))
-  } else {
-    callback()
-  }
+  if (value === '') callback(new Error('请再次输入密码'))
+  else if (value !== form.password) callback(new Error('两次输入的密码不一致'))
+  else callback()
 }
 
 const rules: FormRules = {
   username: [
     { required: true, message: '请输入用户名', trigger: 'blur' },
-    { min: 2, max: 20, message: '用户名长度在2-20个字符', trigger: 'blur' }
+    { min: 2, max: 20, message: '用户名长度为 2～20 个字符', trigger: 'blur' },
   ],
   email: [
     { required: true, message: '请输入邮箱地址', trigger: 'blur' },
-    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' }
+    { type: 'email', message: '请输入正确的邮箱格式', trigger: 'blur' },
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' },
-    { min: 6, message: '密码至少6个字符', trigger: 'blur' }
+    { min: 6, message: '密码至少 6 个字符', trigger: 'blur' },
   ],
   confirmPassword: [
     { required: true, message: '请再次输入密码', trigger: 'blur' },
-    { validator: validatePass, trigger: 'blur' }
-  ]
+    { validator: validatePass, trigger: 'blur' },
+  ],
 }
 
 const handleRegister = async () => {
   if (!formRef.value) return
-
   const valid = await formRef.value.validate().catch(() => false)
   if (!valid) return
-
   loading.value = true
-
   try {
-    // 调用后端注册 API
-    await authApi.register({
-      username: form.username,
-      email: form.email,
-      password: form.password
-    })
-
-    ElMessage.success({
-      message: '注册成功！请登录您的账号',
-      duration: 2000
-    })
-
+    await authApi.register({ username: form.username, email: form.email, password: form.password })
+    ElMessage.success({ message: '注册成功！请登录你的账号', duration: 2000 })
     router.push('/login')
   } catch (error: any) {
     ElMessage.error(error.response?.data?.message || error.message || '注册失败，请稍后重试')
@@ -197,61 +117,41 @@ const handleRegister = async () => {
 </script>
 
 <style scoped>
-.register-page {
-  min-height: 100vh;
-}
-
-.register-left {
-  min-height: 100vh;
-}
-
-.brand-hero-logo {
-  width: 104px;
-  height: 104px;
-  border-radius: 28px;
-  object-fit: cover;
-  box-shadow: 0 22px 44px rgba(15, 23, 42, 0.28);
-}
-
-.brand-mobile-logo {
-  width: 72px;
-  height: 72px;
-  border-radius: 20px;
-  object-fit: cover;
-}
-
-:deep(.el-card) {
-  border-radius: 16px;
-}
-
-:deep(.el-form-item__label) {
-  font-weight: 500;
-  padding-bottom: 4px;
-}
-
-:deep(.el-input__wrapper) {
-  border-radius: 10px;
-  box-shadow: 0 0 0 1px #e5e7eb inset;
-}
-
-:deep(.el-input__wrapper:hover) {
-  box-shadow: 0 0 0 1px #10b981 inset;
-}
-
-:deep(.el-input__wrapper.is-focus) {
-  box-shadow: 0 0 0 1px #10b981 inset;
-}
-
-:deep(.el-button--primary) {
-  border-radius: 10px;
-  height: 48px;
-  font-size: 16px;
-  font-weight: 500;
-  background: linear-gradient(135deg, #10b981, #14b8a6);
-  border: none;
-}
-
-:deep(.el-button--primary:hover) {
-  background: linear-gradient(135deg, #059669, #0d9488);
-}
+.auth-page { min-height: 100vh; display: grid; place-content: center; padding: 30px 20px; background: radial-gradient(circle at 15% 18%, rgba(96,165,250,.25), transparent 28%), radial-gradient(circle at 88% 80%, rgba(45,212,191,.18), transparent 30%), linear-gradient(145deg, #eef6ff 0%, #f7f9fc 48%, #ecf8f8 100%); color: #17233d; }
+.auth-window { width: min(820px, calc(100vw - 40px)); overflow: hidden; border: 1px solid rgba(148,163,184,.42); border-radius: 18px; background: rgba(255,255,255,.97); box-shadow: 0 28px 80px rgba(13,100,140,.17), 0 4px 14px rgba(15,23,42,.08); }
+.auth-banner { position: relative; min-height: 205px; overflow: hidden; padding: 25px 38px 28px; color: #fff; background: linear-gradient(135deg, #075bb8 0%, #1688df 48%, #4dbfbf 100%); }
+.auth-banner::after { content: ''; position: absolute; left: -8%; right: -8%; bottom: -68px; height: 112px; border-radius: 50%; background: rgba(255,255,255,.94); box-shadow: 0 -12px 40px rgba(255,255,255,.22); }
+.banner-orb { position: absolute; border-radius: 999px; background: rgba(255,255,255,.13); }
+.orb-one { width: 210px; height: 210px; right: -55px; top: -80px; }
+.orb-two { width: 100px; height: 100px; right: 155px; bottom: -34px; }
+.brand-line { position: relative; z-index: 2; display: flex; align-items: center; gap: 12px; }
+.brand-mark { width: 48px; height: 48px; border-radius: 14px; object-fit: cover; border: 2px solid rgba(255,255,255,.72); box-shadow: 0 8px 20px rgba(10,55,120,.24); }
+.brand-name { margin: 0; font-size: 19px; font-weight: 800; letter-spacing: .04em; }
+.brand-slogan { margin: 3px 0 0; color: rgba(255,255,255,.78); font-size: 12px; }
+.banner-copy { position: relative; z-index: 2; margin-top: 8px; }
+.banner-kicker { font-size: 11px; font-weight: 800; letter-spacing: .22em; color: #d9f2ff; }
+.banner-copy h1 { margin: 5px 0 3px; font-size: 27px; letter-spacing: .06em; }
+.banner-copy p { margin: 0; color: rgba(255,255,255,.84); font-size: 14px; }
+.auth-content { display: grid; grid-template-columns: 190px 1fr; gap: 34px; padding: 24px 42px 29px; }
+.avatar-panel { display: flex; flex-direction: column; align-items: center; justify-content: center; }
+.avatar-frame { width: 112px; height: 112px; padding: 6px; border-radius: 20px; background: linear-gradient(145deg,#fff,#dbeafe); border: 1px solid #cbd5e1; box-shadow: 0 12px 28px rgba(15,23,42,.14); }
+.avatar-frame img { width: 100%; height: 100%; border-radius: 15px; object-fit: cover; }
+.avatar-panel p { margin: 12px 0 10px; color: #64748b; font-size: 12px; text-align: center; }
+.feature-tags { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+.feature-tags span { padding: 3px 7px; color: #1477b8; font-size: 11px; border: 1px solid #bae6fd; border-radius: 5px; background: #f0f9ff; }
+.form-panel { min-width: 0; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 14px; }
+.form-options { display: flex; justify-content: space-between; align-items: center; margin: -2px 0 16px; font-size: 13px; }
+.secure-tip { color: #64748b; }
+.secure-tip i { display: inline-block; width: 8px; height: 8px; margin-right: 6px; border-radius: 50%; background: #22c55e; box-shadow: 0 0 0 3px #dcfce7; }
+.form-options a { color: #1680d8; text-decoration: none; }
+.submit-button { width: 100%; height: 44px; font-size: 15px; font-weight: 700; letter-spacing: .12em; border: 0; border-radius: 7px; background: linear-gradient(180deg,#4cb5ee 0%,#1687d5 100%); box-shadow: 0 7px 16px rgba(14,116,190,.25); }
+.submit-button:hover { background: linear-gradient(180deg,#36a9e9 0%,#0876c3 100%); }
+.auth-footer { display: flex; justify-content: center; align-items: center; min-height: 48px; padding: 0 20px; color: #64748b; font-size: 12px; border-top: 1px solid #e5eaf1; background: #f7f9fc; }
+.copyright { margin: 14px 0 0; text-align: center; color: #94a3b8; font-size: 12px; }
+:deep(.el-form-item) { margin-bottom: 15px; }
+:deep(.el-form-item__label) { height: 23px; padding: 0; color: #334155; font-size: 13px; font-weight: 700; }
+:deep(.el-input__wrapper) { min-height: 40px; border-radius: 7px; background: #f8fafc; box-shadow: 0 0 0 1px #cbd5e1 inset; }
+:deep(.el-input__wrapper:hover), :deep(.el-input__wrapper.is-focus) { background: #fff; box-shadow: 0 0 0 1px #1687d5 inset, 0 0 0 3px rgba(22,135,213,.1); }
+@media (max-width: 700px) { .auth-page { align-content: start; padding: 18px 12px; } .auth-window { width: 100%; border-radius: 14px; } .auth-banner { min-height: 195px; padding: 22px 24px 27px; } .auth-content { display: block; padding: 24px; } .avatar-panel { display: none; } .field-grid { grid-template-columns: 1fr; } .banner-copy p { display: none; } }
 </style>
