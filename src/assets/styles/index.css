@@ -378,8 +378,6 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   background-color: #f3f8fb !important;
 }
 
-.workspace-content .bg-gradient-to-r,
-.workspace-content .bg-gradient-to-br,
 .workspace-content .progress-hero {
   color: #ffffff !important;
   background: linear-gradient(135deg, #159bd8 0%, #1686c7 55%, #397dd1 100%) !important;
@@ -390,13 +388,92 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   font-size: 12px;
 }
 
-.workspace-content .el-button--primary {
+.workspace-content .el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
   --el-button-bg-color: #168dcc;
   --el-button-border-color: #0879b8;
   --el-button-hover-bg-color: #0879b8;
   --el-button-hover-border-color: #066aa2;
+  --el-button-text-color: #ffffff;
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
   background: linear-gradient(#40b7e9, #168dcc) !important;
   box-shadow: inset 0 1px rgba(255, 255, 255, 0.28);
+}
+
+.workspace-content .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):hover,
+.workspace-content .el-button--primary:not(.is-plain):not(.is-text):not(.is-link):focus {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+  background: linear-gradient(#2aa9df, #0879b8) !important;
+}
+
+.workspace-content .el-button--primary.is-plain {
+  --el-button-text-color: #0b6f9f;
+  --el-button-border-color: #61acd0;
+  --el-button-bg-color: #edf8fd;
+  color: #0b6f9f !important;
+  -webkit-text-fill-color: #0b6f9f !important;
+  border-color: #61acd0 !important;
+  background: #edf8fd !important;
+  box-shadow: none !important;
+}
+
+.workspace-content .el-button--primary.is-plain:hover,
+.workspace-content .el-button--primary.is-plain:focus {
+  color: #075c87 !important;
+  -webkit-text-fill-color: #075c87 !important;
+  border-color: #258dbd !important;
+  background: #dff3fc !important;
+}
+
+.workspace-content .el-button--primary.is-link,
+.workspace-content .el-button--primary.is-text {
+  color: #0879ad !important;
+  -webkit-text-fill-color: #0879ad !important;
+  border-color: transparent !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  font-weight: 600;
+}
+
+.workspace-content .el-button--primary.is-link:hover,
+.workspace-content .el-button--primary.is-text:hover {
+  color: #075779 !important;
+  -webkit-text-fill-color: #075779 !important;
+  background: #e3f4fb !important;
+}
+
+.workspace-content .el-button--success:not(.is-plain):not(.is-text):not(.is-link),
+.workspace-content .el-button--warning:not(.is-plain):not(.is-text):not(.is-link),
+.workspace-content .el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+.workspace-content .el-button.is-disabled:not(.is-plain):not(.is-link):not(.is-text),
+.workspace-content .el-button.is-disabled:not(.is-plain):not(.is-link):not(.is-text):hover {
+  color: rgba(255, 255, 255, 0.9) !important;
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.9) !important;
+  border-color: #80b6ce !important;
+  background: #75b5d1 !important;
+  opacity: 0.78;
+}
+
+.workspace-content .el-button--primary.is-plain.is-disabled,
+.workspace-content .el-button--primary.is-plain.is-disabled:hover {
+  color: #6f8797 !important;
+  -webkit-text-fill-color: #6f8797 !important;
+  border-color: #ccdbe4 !important;
+  background: #f0f5f8 !important;
+  opacity: 1;
+}
+
+.workspace-content .el-button--primary.is-link.is-disabled,
+.workspace-content .el-button--primary.is-text.is-disabled {
+  color: #6f8797 !important;
+  -webkit-text-fill-color: #6f8797 !important;
+  background: transparent !important;
+  opacity: 1;
 }
 
 .workspace-content .el-input__wrapper,
@@ -549,13 +626,41 @@ html.dark ::-webkit-scrollbar-thumb:hover {
   -webkit-text-fill-color: #607789 !important;
 }
 
+/* Restore intentional card backgrounds that the generic card skin must not flatten. */
+.workspace-content .el-card.start-card {
+  color: #ffffff !important;
+  border-color: #247fad !important;
+  background: linear-gradient(120deg, #177eaf 0%, #246fa8 100%) !important;
+}
+
+.workspace-content .el-card.start-card h1,
+.workspace-content .el-card.start-card h2,
+.workspace-content .el-card.start-card h3,
+.workspace-content .el-card.start-card strong {
+  color: #ffffff !important;
+}
+
+.workspace-content .el-card.start-card p {
+  color: #eef8ff !important;
+}
+
+.workspace-content .el-card.progress-hero {
+  color: #ffffff !important;
+  border-color: #247fad !important;
+  background: linear-gradient(135deg, #159bd8 0%, #1686c7 55%, #397dd1 100%) !important;
+}
+
+.workspace-content .el-card.bg-gradient-to-r.from-indigo-50 {
+  color: var(--workspace-text) !important;
+  border-color: #b9d7e7 !important;
+  background: linear-gradient(135deg, #ffffff 0%, #eef8fc 100%) !important;
+}
+
+.workspace-content .el-card.bg-gradient-to-r.from-indigo-50 .el-card__header {
+  background: linear-gradient(#fafdff, #e6f3f9) !important;
+}
+
 /* Blue title/hero areas need light text instead of the workspace gray scale. */
-.workspace-content .bg-gradient-to-r .text-gray-300,
-.workspace-content .bg-gradient-to-r .text-gray-400,
-.workspace-content .bg-gradient-to-r .text-gray-500,
-.workspace-content .bg-gradient-to-br .text-gray-300,
-.workspace-content .bg-gradient-to-br .text-gray-400,
-.workspace-content .bg-gradient-to-br .text-gray-500,
 .workspace-content .progress-hero .text-gray-300,
 .workspace-content .progress-hero .text-gray-400,
 .workspace-content .progress-hero .text-gray-500 {
@@ -624,6 +729,19 @@ html.dark .workspace-content .el-select__placeholder,
 html.dark .workspace-content .el-textarea__inner::placeholder {
   color: #9fb0bf !important;
   -webkit-text-fill-color: #9fb0bf !important;
+}
+
+html.dark .workspace-content .el-card.bg-gradient-to-r.from-indigo-50 {
+  color: var(--workspace-text) !important;
+  border-color: #3b5368 !important;
+  background: linear-gradient(135deg, #1e293b 0%, #22364a 100%) !important;
+}
+
+html.dark .workspace-content .el-button--primary.is-plain {
+  color: #9edcff !important;
+  -webkit-text-fill-color: #9edcff !important;
+  border-color: #397da2 !important;
+  background: #17384a !important;
 }
 
 @media (max-width: 760px) {
